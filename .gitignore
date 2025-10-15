@@ -1,0 +1,41 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env
+.env.*
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+
+# Database / local files
+*.sqlite3
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Chroma / vector store
+chroma_vectors/
+vector_store/
+
+# Pytest / coverage
+.coverage
+htmlcov/
+*.pytest_cache/
+.pytest_cache/
+
+# Build / distribution
+build/
+dist/
+*.egg-info/

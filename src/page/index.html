@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat UI</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      .chat-container {
+        /* width: 400px; */
+        /* height: 600px; */
+        height: 88vh;
+        width: 100%;
+        background: #ffffff;
+        /* border-radius: 20px; */
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .chat-header {
+        background: #4e73df;
+        color: white;
+        padding: 20px;
+        text-align: center;
+        font-size: 1.2em;
+        font-weight: bold;
+      }
+
+      .chat-messages {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        background: #f9f9f9;
+      }
+
+      .message {
+        max-width: 70%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        position: relative;
+        word-wrap: break-word;
+        font-size: 0.95em;
+        animation: fadeIn 0.4s ease;
+      }
+
+      .message.user {
+        align-self: flex-end;
+        background: #d1e7ff;
+        border-bottom-right-radius: 0;
+      }
+
+      .message.bot {
+        align-self: flex-start;
+        background: #e6e6e6;
+        border-bottom-left-radius: 0;
+      }
+
+      .chat-input {
+        display: flex;
+        border-top: 1px solid #ccc;
+        background: #fff;
+      }
+
+      .chat-input input {
+        flex: 1;
+        padding: 15px;
+        border: none;
+        outline: none;
+        font-size: 1em;
+      }
+
+      .chat-input button {
+        background: #4e73df;
+        color: white;
+        border: none;
+        padding: 15px 20px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      .chat-input button:hover {
+        background: #2e59d9;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      /* Base reset and font */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        background: #f5f7fa;
+        color: #333;
+      }
+
+      /* Container layout */
+      .container {
+        max-width: 1140px;
+        padding: 20px;
+        margin: auto;
+      }
+      .row {
+        display: flex;
+        /* align-items: center; */
+      }
+
+      .cursor {
+        cursor: pointer;
+      }
+      /* Width utilities (from your HTML classes) */
+      .w-full {
+        width: 100%;
+        height: 90vh;
+      }
+      .w-40 {
+        width: 30%;
+        background: #1e293b;
+        color: #fff;
+      }
+      .w-60 {
+        width: 70%;
+        background: #fff;
+      }
+
+      /* Sidebar styling */
+      aside {
+        padding: 20px;
+        /* width:100%; */
+      }
+      aside h1 {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+
+      /* Chat container */
+      .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .chat-header {
+        background: #0ea5e9;
+        color: white;
+        padding: 14px 20px;
+        font-weight: bold;
+      }
+      .chat-messages {
+        flex: 1;
+        padding: 15px;
+        overflow-y: auto;
+        background: #f1f5f9;
+      }
+      .message {
+        max-width: 75%;
+        margin-bottom: 10px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        line-height: 1.4;
+      }
+      .message.bot {
+        background: #e2e8f0;
+        align-self: flex-start;
+      }
+      .message.user {
+        background: #0ea5e9;
+        color: white;
+        align-self: flex-end;
+      }
+
+      /* Chat input */
+      .chat-input {
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid #e2e8f0;
+        background: white;
+      }
+      .chat-input input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        outline: none;
+      }
+      .chat-input button {
+        margin-left: 10px;
+        padding: 10px 16px;
+        background: #0ea5e9;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .chat-input button:hover {
+        background: #0284c7;
+      }
+
+      /* Scrollbar styling (optional) */
+      .chat-messages::-webkit-scrollbar {
+        width: 6px;
+      }
+      .chat-messages::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 4px;
+      }
+
+      /* Responsive for mobile */
+      @media (max-width: 768px) {
+        .row {
+          flex-direction: column;
+        }
+        .w-40,
+        .w-60 {
+          width: 100%;
+        }
+        .w-40 {
+          min-height: 60px;
+        }
+      }
+      .pointer {
+        cursor: pointer;
+        /* cur */
+      }
+
+      .popup-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+
+      /* Show popup when checkbox is checked */
+      #popup-toggle:checked ~ .popup-overlay {
+        display: flex;
+      }
+
+      /* Popup box */
+      .popup {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        width: 280px;
+        text-align: center;
+      }
+      .popup h2 {
+        margin-bottom: 12px;
+      }
+      .popup input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .popup-buttons {
+        margin-top: 15px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .popup-buttons label,
+      .popup-buttons .add {
+        flex: 1;
+        margin: 0 4px;
+        padding: 8px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+      }
+      .popup-buttons .cancel {
+        background: #e5e7eb;
+      }
+      .popup-buttons .add {
+        background: #0ea5e9;
+        color: white;
+      }
+      .popup-buttons .cancel:hover {
+        background: #d1d5db;
+      }
+      .popup-buttons .add:hover {
+        background: #0284c7;
+      }
+      .none {
+        display: none;
+      }
+      .welcome-screen {
+        text-align: center;
+        padding: 30px;
+        padding-top: 15%;
+        color: #475569;
+      }
+      .welcome-icon {
+        font-size: 50px;
+        margin-bottom: 15px;
+      }
+
+      .welcome-screen h2 {
+        font-size: 1.5rem;
+        margin-bottom: 8px;
+      }
+      .welcome-screen p {
+        font-size: 0.95rem;
+        color: #64748b;
+        max-width: 280px;
+        margin-bottom: 20px;
+        margin-left: 30%;
+        text-align: center;
+      }
+
+      .start-chat-btn {
+        display: inline-block;
+        background: #0ea5e9;
+        color: white;
+        padding: 10px 18px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        text-decoration: none;
+      }
+      .start-chat-btn:hover {
+        background: #0284c7;
+      }
+      /* Hide popup by default */
+      .popup-overlay-document {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        justify-content: center;
+        align-items: center;
+      }
+
+      /* Show popup when checkbox is checked */
+      #popup-toggle-document:checked ~ .popup-overlay-document {
+        display: flex;
+      }
+
+      .popup {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        width: 350px;
+      }
+
+      .popup-buttons {
+        margin-top: 15px;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .cancel {
+        cursor: pointer;
+        color: red;
+      }
+      .popup table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        font-size: 14px;
+      }
+
+      .popup table th,
+      .popup table td {
+        border: 1px solid #ddd;
+        padding: 8px 12px;
+        text-align: left;
+      }
+
+      .popup table th {
+        background-color: #f4f4f4;
+        font-weight: bold;
+      }
+
+      .popup table tr:nth-child(even) {
+        background-color: #fafafa;
+      }
+
+      .popup table tr:hover {
+        background-color: #f1f1f1;
+        cursor: pointer;
+      }
+      #uploadDocument {
+        cursor: pointer;
+        display: flex;
+        background-color: #007bff; /* Blue background */
+        color: white; /* White text */
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        align-items: center;
+        justify-content: center;
+        margin-left: auto;
+        transition: background-color 0.3s ease;
+        text-transform: uppercase;
+      }
+
+      #uploadDocument:hover {
+        background-color: #0056b3; /* Darker blue on hover */
+      }
+      .delbtn {
+        background-color: #dc3545; /* Red background */
+        color: white; /* White text */
+        padding: 5px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .delbtn:hover {
+        background-color: #c82333; /* Darker red on hover */
+      }
+      .lhover {
+        padding: 5px;
+        font-size: 15px;
+        cursor: pointer;
+        /* border: 1px solid white; */
+        border-radius: 4px;
+      }
+      .lhover:hover {
+        padding: 5px;
+        background-color: rgba(255, 255, 255, 0.276);
+      }
+    </style>
+  </head>
+  <body>
+    <section class="container">
+      <div
+        class="w-full row"
+        style="
+          border: 2px solid rgba(0, 0, 0, 0.411);
+          overflow: hidden;
+          border-radius: 10px;
+        "
+      >
+        <div class="w-40">
+          <!-- <aside> -->
+          <div
+            class="row"
+            style="
+              display: flex; /* Make it a flex container */
+              justify-content: space-between;
+              align-items: center; /* Vertical alignment */
+              padding: 20px 20px 30px 10px;
+            "
+          >
+            <h1>Jeel</h1>
+            <div
+              style="
+                display: flex; /* Make inner div horizontal too */
+                gap: 20px; /* Space between labels */
+                font-size: 20px;
+              "
+            >
+              <label onclick="getDocument()" class="lhover">Document</label>
+              <label onclick="sessionPost()" class="lhover">New Chat</label>
+            </div>
+          </div>
+          <div id="session"></div>
+        </div>
+        <div class="w-60">
+          <div class="chat-container">
+            <div class="chat-header">Chat with Assistant</div>
+            <div id="welcome-screen" class="welcome-screen">
+              <div class="welcome-icon">💬</div>
+              <h2>Welcome to Chat Assistant</h2>
+              <p>Select a chat from the left or start a new one to begin.</p>
+              <label
+                for="popup-toggle"
+                class="start-chat-btn"
+                onclick="sessionPost()"
+                >➕ Start New Chat</label
+              >
+            </div>
+            <div class="chat-messages none">
+              <div class="chat-messages" id="chat-messages">
+                <!-- <div class="message bot">Hello! How can I help you today?</div> -->
+                <!-- <div class="message user">I need help with my project.</div> -->
+              </div>
+              <div class="chat-input">
+                <input
+                  type="text"
+                  id="chat-input"
+                  placeholder="Type a message..."
+                />
+                <button onclick="sendMessage()">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <div>
+      <input type="checkbox" id="popup-toggle-document" hidden />
+
+      <!-- Popup overlay -->
+      <div class="popup-overlay-document">
+        <div class="popup">
+          <input type="file" name="" id="file-document" hidden multiple />
+          <button id="uploadDocument" onclick="uploadDoc()">upload</button>
+          <!-- <label
+                id="uploadDocument"
+                onclick="uploadDoc()"
+                style="cursor: pointer; margin: 3px"
+                >upload Document</label
+              > -->
+          <h2>Document</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Name</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+          </table>
+          <div class="popup-buttons">
+            <label class="cancel" id="cancelDoc">Cancel</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      let input;
+      let message;
+      let botMessage;
+      let allSession = [];
+      let sessionId = null;
+
+      const fileInput = document.getElementById("file-document");
+      const uploadLabel = document.getElementById("uploadDocument");
+
+      const delay = (ms) => {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      };
+      const sessionPost = async () => {
+        const response = await fetch("http://localhost:8888/sessions/add/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "" }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("data :- ", data);
+            if (data) {
+              getSession();
+            }
+          });
+      };
+      const displaySession = (data) => {
+        const sessionContainer = document.getElementById("session");
+        sessionContainer.innerHTML = "";
+
+        data.forEach((item) => {
+          let name = document.createElement("p");
+          name.value = item.id;
+          name.style.padding = "10px 0px 0px 10px";
+          name.classList.add("cursor");
+          name.innerHTML = item.name;
+
+          name.addEventListener("click", async () => {
+            sessionId = item.id;
+            document.querySelector(".chat-messages").classList.remove("none");
+            document.querySelector("#welcome-screen").classList.add("none");
+            document.querySelector(".welcome-screen").classList.add("none");
+
+            const chatBox = document.getElementById("chat-messages");
+            chatBox.innerHTML = ""; // Clear old messages
+
+            const response = await fetch(
+              `http://127.0.0.1:8888/messages/${item.id}`
+            );
+            const messages = await response.json();
+            const dataMsg = messages.messages;
+            console.log("Messages :", messages.messages);
+
+            dataMsg.forEach((msg) => {
+              const div = document.createElement("div");
+              div.className = `message ${msg.role === "user" ? "user" : "bot"}`;
+              div.textContent = msg.message;
+              chatBox.appendChild(div);
+            });
+
+            chatBox.scrollTop = chatBox.scrollHeight;
+          });
+
+          sessionContainer.append(name);
+        });
+      };
+
+      const deleteDocument = async (id) => {
+        const response = await fetch(
+          `http://localhost:8888/documents/delete/${id}`,
+          {
+            method: "DELETE",
+          }
+        );
+        if (response.ok) {
+          alert("Document deleted successfully");
+          document.querySelector(".popup-overlay-document").style.display =
+            "none";
+          getDocument();
+        } else {
+          alert("Failed to delete document");
+        }
+      };
+
+      const get = async (question, sessionId, botMessage) => {
+        let finalAnswer = "";
+        try {
+          const response = await fetch(
+            `http://127.0.0.1:8888/ask/${sessionId}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ question }),
+            }
+          );
+
+          if (!response.ok) {
+            const error = await response.text();
+            console.error("Error:", error);
+            botMessage.textContent = error || "⚠️ Something went wrong.";
+            return;
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+
+          botMessage.textContent = ""; // clear old content
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            finalAnswer += chunk;
+            botMessage.textContent = finalAnswer; // ✅ show growing answer
+            await delay(30); // optional typing effect
+          }
+
+          return finalAnswer;
+        } catch (err) {
+          console.error("Fetch failed:", err);
+          botMessage.textContent = "⚠️ Failed to connect to server.";
+        }
+      };
+      async function sendMessage() {
+        const input = document.getElementById("chat-input");
+        const message = input.value.trim();
+        if (message === "") return;
+
+        const chatBox = document.getElementById("chat-messages");
+
+        // Add user's message immediately
+        const userMessage = document.createElement("div");
+        userMessage.className = "message user";
+        userMessage.textContent = message;
+        chatBox.appendChild(userMessage);
+
+        // Prepare bot message container for streaming
+        const botMessage = document.createElement("div");
+        botMessage.className = "message bot";
+        botMessage.textContent = ""; // start empty
+        chatBox.appendChild(botMessage);
+
+        input.value = "";
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // Stream bot's answer directly into the bubble
+        await get(message, sessionId, botMessage);
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+      const getDocument = () => {
+        fetch("http://localhost:8888/documents/show")
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("Documents Data :- ", data.documents);
+            const popupTable = document.querySelector("table");
+
+            // Remove old tbody if exists
+            const oldTbody = popupTable.querySelector("tbody");
+            if (oldTbody) popupTable.removeChild(oldTbody);
+
+            const tbody = document.createElement("tbody");
+
+            if (!data.documents || data.documents.length === 0) {
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+          <td colspan="3">No documents found</td>
+        `;
+              tbody.appendChild(tr);
+            } else {
+              data.documents.forEach((doc, index) => {
+                const tr = document.createElement("tr");
+
+                const indexn = document.createElement("td");
+                indexn.textContent = index + 1;
+
+                const name = document.createElement("td");
+                name.textContent = doc.filename;
+
+                const actions = document.createElement("td");
+                const deleteButton = document.createElement("button");
+                deleteButton.textContent = "Delete";
+                deleteButton.className = "pointer delbtn";
+                deleteButton.addEventListener("click", () => {
+                  deleteDocument(doc.id);
+                });
+
+                actions.appendChild(deleteButton);
+                tr.append(indexn, name, actions);
+                tbody.appendChild(tr);
+              });
+            }
+
+            // Append the new tbody
+            popupTable.appendChild(tbody);
+          });
+
+        document.querySelector(".popup-overlay-document").style.display =
+          "flex";
+      };
+
+      document.querySelector("#cancelDoc").addEventListener("click", () => {
+        document.querySelector(".popup-overlay-document").style.display =
+          "none";
+      });
+
+      const uploadDoc = () => {
+        fileInput = document.getElementById("file-document").click();
+      };
+      fileInput.addEventListener("change", async () => {
+        const files = fileInput.files;
+        if (!files || files.length === 0) return;
+
+        const formData = new FormData();
+
+        // append each file under the correct key
+        for (let i = 0; i < files.length; i++) {
+          formData.append("files", files[i]); // key matches FastAPI parameter
+        }
+
+        console.log(
+          " show filenames in FormData :- ",
+          formData.getAll("files")
+        );
+        try {
+          const response = await fetch(
+            "http://127.0.0.1:8888/documents/upload-pdf/",
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
+
+          const data = await response.json();
+          console.log("Upload response:", data);
+        } catch (err) {
+          console.error("Upload error:", err);
+        }
+      });
+      const getSession = async () => {
+        const response = await fetch("http://localhost:8888/sessions/");
+        const res = await response.json();
+        displaySession(res);
+      };
+
+      getSession();
+    </script>
+  </body>
+</html>
