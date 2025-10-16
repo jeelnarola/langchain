@@ -11,7 +11,6 @@ import json
 import re
 
 from services.sessionService import insert_session,update_session_name
-from services.usermemoryService import fetch_latest_memory,save_memory
 from config.database import get_db
 from services.messageService import insert_message
 from openai import OpenAI
@@ -89,54 +88,4 @@ def store_message_db(session_id: str, role: str, message: str):
         # Skip DB insert if session_id is not a valid integer
         pass
 
-def extract_memory(messages: list[dict]) -> dict:
-    """
-    Use LLM to extract structured user facts from conversation history.
-    Returns a dict like {"name": "Alice", "age": "25", "food": "Pizza"}.
-    """
-    # Combine conversation
-    text = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
 
-    prompt = f"""
-    You are an information extraction system.
-    From the conversation below, extract ONLY user-related facts such as:
-    - name
-    - age
-    - location
-    - hobbies
-    - likes/dislikes
-    - preferences
-    - favorites (food, music, movies, etc.)
-
-    Rules:
-    - Output must be ONLY valid JSON.
-    - Do not include extra text or explanations.
-    - If nothing relevant, return empty JSON {{}}.
-
-    Conversation:
-    {text}
-    """
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",   # ✅ faster + cheaper, or use gpt-4
-        messages=[{"role": "system", "content": prompt}],
-        temperature=0
-    )
-
-    raw = response.choices[0].message.content.strip()
-
-    try:
-        return json.loads(raw)   # Parse JSON safely
-    except Exception:
-        print("⚠️ Memory extract parse error:", raw)
-        return {}
-
-def retrieve_memory_db(db,k: int = 5):
-    """
-    Retrieve latest k user memory facts (field=value).
-    """
-    return fetch_latest_memory(db, k)
-
-def save_memory_db(field: str, value: str):
-    db = next(get_db())
-    save_memory(db, field, value)

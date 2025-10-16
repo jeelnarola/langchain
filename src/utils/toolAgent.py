@@ -1,14 +1,17 @@
 from typing import Dict, List, Optional, Tuple
 from tools.toolmanager import handle_tool_call, parse_use_mcp_tool
 from prompt.toolPrompt import build_tool_prompt
+from services.userMemoryMem0 import add_to_mem0, retrieve_mem0
 from utils.createSession import (
     updated_sessions,
     store_message_db,
-    extract_memory,
-    retrieve_memory_db,
-    save_memory_db,
 )
 import re, json
+
+from mem0 import MemoryClient
+
+# Initialize client
+mem_client = MemoryClient(api_key="m0-9ZW4mBuRb68q1VAftTVdhNO9qIuIApa32slVCV8r")
 
 # Assume memory helpers are available
 
@@ -41,7 +44,7 @@ class ToolAgent:
 
     # -------------------- Start Task --------------------
     async def start_task(
-        self, task: str, conversation_history: Optional[List], mode: Optional[str] = "action"
+    self, task: str, conversation_history: Optional[List], mode: Optional[str] = "action"
     ) -> str:
         self.result = ""
         self.message_history = []
@@ -52,22 +55,25 @@ class ToolAgent:
         task_content = f"<task>\n{task}\n</task>"
         self.add_to_history("user", task_content)
 
-        # -------------------- Extract & Save User Info --------------------
+        # -------------------- Save task to mem0 --------------------
         try:
-            extracted = extract_memory([{"role": "user", "content": task}])
-            if extracted:
-                for field, value in extracted.items():
-                    save_memory_db(field, value)
+            add_to_mem0(user_id=self.session_id, messages=[{"role": "user", "content": task}])
+            print(f"✅ Task added to mem0 for user {self.session_id}")
         except Exception as e:
-            print(f"❌ Error extracting memory: {e}")
+            print(f"❌ Error adding message to mem0: {e}")
 
         # -------------------- Prepare Context --------------------
         last_messages = self.message_history[-8:]  # last 8 messages
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in last_messages])
-        memory_text = retrieve_memory_db(self.db,k=3)  # last 3 saved memory items
 
-        system_context = f"User memory:\n{memory_text}\nRecent history:\n{history_text}"
+        # Use the user’s current question to fetch relevant memories
+        memory_text_mem0 = retrieve_mem0(user_id=self.session_id, question=task)
+        print('\033[92m=====memory_text_mem0=====\033[0m',memory_text_mem0)
+        system_context = f"User memory (mem0):\n{memory_text_mem0}\nRecent history:\n{history_text}"
 
+        # system_context = f"User memory (mem0):\n{memory_text_mem0}\nRecent history:\n{history_text}"
+
+        # Insert system prompt if not present
         if not any(msg["role"] == "system" for msg in self.message_history):
             system_prompt = await build_tool_prompt(self.tools_schema)
             self.message_history.insert(
