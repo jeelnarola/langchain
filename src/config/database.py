@@ -1,15 +1,20 @@
 import time
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import pymysql
+from dotenv import load_dotenv
 
-# ✅ Database configuration for LOCAL development
-DB_USER = "root"
-DB_PASSWORD = "Narola_29_Patel_11"   # your MySQL password
-DB_HOST = "127.0.0.1"         # Localhost when running MySQL locally
-DB_PORT = "3306"
-DB_NAME = "ragchatbot"
+# Load environment variables
+load_dotenv()
+
+# ✅ Database configuration from environment variables
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "3306")
+DB_NAME = os.getenv("DB_NAME")
 
 # ✅ SQLAlchemy connection URL
 SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"

@@ -9,6 +9,7 @@ from utils.createSession import (
     save_memory_db,
 )
 import re, json
+from services.mem0_usage import add_to_mem0, retrieve_mem0  
 
 # Assume memory helpers are available
 
@@ -54,17 +55,14 @@ class ToolAgent:
 
         # -------------------- Extract & Save User Info --------------------
         try:
-            extracted = extract_memory([{"role": "user", "content": task}])
-            if extracted:
-                for field, value in extracted.items():
-                    save_memory_db(field, value)
+            add_to_mem0(user_id=self.session_id,messages=[{"role": "user", "content": task}])
         except Exception as e:
             print(f"❌ Error extracting memory: {e}")
 
         # -------------------- Prepare Context --------------------
         last_messages = self.message_history[-8:]  # last 8 messages
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in last_messages])
-        memory_text = retrieve_memory_db(self.db,k=3)  # last 3 saved memory items
+        memory_text = retrieve_mem0(user_id=self.session_id,question=task) # last 3 saved memory items
 
         system_context = f"User memory:\n{memory_text}\nRecent history:\n{history_text}"
 

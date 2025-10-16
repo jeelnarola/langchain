@@ -110,7 +110,7 @@ os.makedirs(VECTOR_DIR, exist_ok=True)
 #                     persist_directory=os.path.join(VECTOR_DIR, "global"),
 #                 )
 #             else:
-#                 global_vectorstore.add_documents(chunks)
+#                 global_vectorstore.add_documelnts(chunks)
 #                 global_vectorstore.persist()
 
 #             vector_file_name = f"{uuid.uuid4()}"
