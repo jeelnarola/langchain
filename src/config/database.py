@@ -30,13 +30,13 @@ for attempt in range(1, MAX_RETRIES + 1):
         engine = create_engine(SQLALCHEMY_DATABASE_URL)
         # Test the connection
         with engine.connect() as conn:
-            print(f"✅ Connected to the database (attempt {attempt})")
+            print(f"[SUCCESS] Connected to the database (attempt {attempt})")
         break
     except Exception as e:
-        print(f"⚠️ Attempt {attempt}: Could not connect to the database. Retrying in {RETRY_DELAY} seconds...")
+        print(f"[WARNING] Attempt {attempt}: Could not connect to the database. Retrying in {RETRY_DELAY} seconds...")
         time.sleep(RETRY_DELAY)
 else:
-    raise Exception("❌ Could not connect to the database after multiple attempts.")
+    raise Exception("[ERROR] Could not connect to the database after multiple attempts.")
 
 # ✅ Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

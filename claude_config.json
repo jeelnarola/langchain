@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "langchain": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:/miraiminds/langchain",
+        "run",
+        "main.py"
+      ]
+    }
+  }
+}
