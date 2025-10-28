@@ -9,10 +9,20 @@ from services.productService import save_product_db
 # from services.emailService import save_email_db
 
 from langchain_openai import OpenAIEmbeddings
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from mcp_client import mcp_client, call_mcp_tool
 
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+try:
+    from telethon.sync import TelegramClient
+    from telethon.sessions import StringSession
+    TELETHON_AVAILABLE = True
+except ImportError:
+    TELETHON_AVAILABLE = False
 
 # --- Tool Registry ---
 TOOLS: Dict[str, Callable] = {}
@@ -160,11 +170,36 @@ def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
             server.sendmail(os.getenv("SMTP_USER"), to_email, msg.as_string())
             server.quit()
 
-            print(f"📧 Email sent to {to_email}")
+            print(f"[SUCCESS] Email sent to {to_email}")
 
             return {"status": "success", "message": f"Email sent to {to_email}"}
     except Exception as e:
-        print("❌ Error in send_email_tool:", e)
+        print("[ERROR] Error in send_email_tool:", e)
+        return {"status": "error", "message": str(e)}
+
+def send_telegram_tool(chat_id: str, message: str) -> dict:
+    """
+    Send a message to a Telegram chat using the Telegram API.
+    """
+    if not TELETHON_AVAILABLE:
+        return {"status": "error", "message": "Telethon not installed. Run: pip install telethon"}
+    
+    try:
+        api_id = int(os.getenv("TELEGRAM_API_ID"))
+        api_hash = os.getenv("TELEGRAM_API_HASH")
+        session_string = os.getenv("TELEGRAM_SESSION_STRING")
+        
+        if not all([api_id, api_hash, session_string]):
+            return {"status": "error", "message": "Telegram credentials not configured in .env file"}
+        
+        with TelegramClient(StringSession(session_string), api_id, api_hash) as client:
+            client.send_message(chat_id, message)
+            
+        print(f"[SUCCESS] Telegram message sent to {chat_id}")
+        return {"status": "success", "message": f"Message sent to {chat_id}"}
+        
+    except Exception as e:
+        print("[ERROR] Error in send_telegram_tool:", e)
         return {"status": "error", "message": str(e)}
 
 # async def handle_tool_call(tool_call):
@@ -232,9 +267,11 @@ async def handle_tool_call(tool_call, db=None):
     if isinstance(tool_call, dict):
         tool_name = tool_call["function"]["name"]
         tool_args_raw = tool_call["function"]["arguments"]
+        server_name = tool_call.get("server_name")
     else:
         tool_name = tool_call.function.name
         tool_args_raw = tool_call.function.arguments
+        server_name = None
 
     if isinstance(tool_args_raw, str):
         try:
@@ -248,11 +285,31 @@ async def handle_tool_call(tool_call, db=None):
 
     print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
     
+    # Check if this is an MCP tool call
+    if server_name:
+        try:
+            result = await call_mcp_tool(server_name, tool_name, tool_args)
+            return {
+                "status": "success",
+                "tool": tool_name,
+                "result": result,
+                "message": result or "MCP tool executed successfully"
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "tool": tool_name,
+                "result": None,
+                "message": f"MCP tool execution failed: {str(e)}"
+            }
+    
+    # Handle local tools
     tool_fn = {
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
         "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool
+        "product_insert_tool": product_insert_tool,
+        "send_telegram_tool": send_telegram_tool
     }.get(tool_name)
 
     if not tool_fn:
@@ -289,7 +346,6 @@ async def handle_tool_call(tool_call, db=None):
         }
 
 import xml.etree.ElementTree as ET
- 
 
 def parse_use_mcp_tool(xml_call: str) -> dict:
     """Parse <use_mcp_tool> XML into a dict."""
@@ -324,4 +380,12 @@ def parse_use_mcp_tool(xml_call: str) -> dict:
         "function": {"name": tool_name, "arguments": tool_args},
         "server_name": server_name
     }
+
+async def get_all_mcp_tools():
+    """Get all available tools from all MCP servers"""
+    try:
+        return await mcp_client.get_all_tools()
+    except Exception as e:
+        print(f"Error getting MCP tools: {e}")
+        return {}
 

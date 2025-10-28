@@ -1,0 +1,13 @@
+ {
+    "mcpServers": {
+        "telegram-mcp": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                "D:\\mcp_server\\telegram-mcp",
+                "run",
+                "main.py"
+            ]
+        }
+    }
+}

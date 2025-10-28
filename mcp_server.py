@@ -8,7 +8,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 from dotenv import load_dotenv
-from tools.toolmanager import weather_tool, pdf_tool, product_insert_tool, send_email_tool
+from tools.toolmanager import weather_tool, pdf_tool, product_insert_tool, send_email_tool, send_telegram_tool
 
 load_dotenv()
 app = Server("langchain-server")
@@ -91,6 +91,24 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["name", "price", "description"]
             }
+        ),
+        Tool(
+            name="send_telegram_tool",
+            description="Send a message to a Telegram chat",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "chat_id": {
+                        "type": "string",
+                        "description": "Telegram chat ID or username (e.g., '@username' or chat ID)"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Message to send"
+                    }
+                },
+                "required": ["chat_id", "message"]
+            }
         )
     ]
 
@@ -105,6 +123,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             result = pdf_tool(**arguments)
         elif name == "product_insert_tool":
             result = product_insert_tool(**arguments)
+        elif name == "send_telegram_tool":
+            result = send_telegram_tool(**arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
         
