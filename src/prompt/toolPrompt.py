@@ -8,9 +8,21 @@ async def build_tool_prompt(tools_schema):
     - Ensures one <thinking> + <use_mcp_tool> per subtask.
     - Final <attempt_completion> is emitted only after *all* tasks are completed.
     """
-
+    from tools.toolmanager import get_all_mcp_tools
+    
     current_date = datetime.now().strftime("%Y-%m-%d")
     current_time = datetime.now().strftime("%H:%M:%S")
+    
+    # Get MCP tools dynamically
+    mcp_tools = await get_all_mcp_tools()
+    
+    # Format MCP tools for the prompt
+    mcp_tools_text = ""
+    for server_name, tools in mcp_tools.items():
+        mcp_tools_text += f"\n\n### MCP Server: {server_name}\n"
+        for tool in tools:
+            mcp_tools_text += f"- **{tool['name']}**: {tool.get('description', 'No description')}\n"
+            mcp_tools_text += f"  Parameters: {tool.get('inputSchema', {})}\n"
 
     prompt = f"""
 # SYSTEM: identity + metadata
@@ -32,7 +44,9 @@ Today's date: {current_date}  Current time: {current_time}
 
 ---
 
-## connected tools : {tools_schema}
+## Local Tools: {tools_schema}
+
+## MCP Tools:{mcp_tools_text}
 
 ---
 
@@ -62,7 +76,7 @@ Identify the current subtask, reason why a specific tool is needed, and explain 
 </thinking>
 
 <use_mcp_tool>
-  <server_name>SERVER_NAME</server_name>
+  <server_name>ACTUAL_SERVER_NAME</server_name>  <!-- Use the actual server name from MCP Tools list above, e.g., 'telegram-mcp' -->
   <tool_name>TOOL_NAME</tool_name>
   <arguments>
   <![CDATA[
@@ -70,6 +84,8 @@ Identify the current subtask, reason why a specific tool is needed, and explain 
   ]]>
   </arguments>
 </use_mcp_tool>
+
+For local tools (pdf_tool, weather_tool, etc.), leave <server_name> empty or omit it.
 
 # AFTER ALL TOOL CALLS
 After all subtasks are handled, combine all tool outputs into one cohesive, polished Markdown response:

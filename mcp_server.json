@@ -1,13 +1,13 @@
 {
-  "mcpServers": {
-    "telegram-mcp": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "d:/New folder (2)/langchain/mcp_hub",
-        "run",
-        "main.py"
-      ]
+    "mcpServers": {
+        "telegram-mcp": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                "D:\\mcptool\\telegram-mcp",
+                "run",
+                "main.py"
+            ]
+        }
     }
-  }
 }
