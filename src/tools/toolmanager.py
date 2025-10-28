@@ -17,12 +17,6 @@ from mcp_client import mcp_client, call_mcp_tool
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-try:
-    from telethon.sync import TelegramClient
-    from telethon.sessions import StringSession
-    TELETHON_AVAILABLE = True
-except ImportError:
-    TELETHON_AVAILABLE = False
 
 # --- Tool Registry ---
 TOOLS: Dict[str, Callable] = {}
@@ -177,30 +171,7 @@ def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
         print("[ERROR] Error in send_email_tool:", e)
         return {"status": "error", "message": str(e)}
 
-def send_telegram_tool(chat_id: str, message: str) -> dict:
-    """
-    Send a message to a Telegram chat using the Telegram API.
-    """
-    if not TELETHON_AVAILABLE:
-        return {"status": "error", "message": "Telethon not installed. Run: pip install telethon"}
-    
-    try:
-        api_id = int(os.getenv("TELEGRAM_API_ID"))
-        api_hash = os.getenv("TELEGRAM_API_HASH")
-        session_string = os.getenv("TELEGRAM_SESSION_STRING")
-        
-        if not all([api_id, api_hash, session_string]):
-            return {"status": "error", "message": "Telegram credentials not configured in .env file"}
-        
-        with TelegramClient(StringSession(session_string), api_id, api_hash) as client:
-            client.send_message(chat_id, message)
-            
-        print(f"[SUCCESS] Telegram message sent to {chat_id}")
-        return {"status": "success", "message": f"Message sent to {chat_id}"}
-        
-    except Exception as e:
-        print("[ERROR] Error in send_telegram_tool:", e)
-        return {"status": "error", "message": str(e)}
+
 
 # async def handle_tool_call(tool_call):
 #     """Executes a tool call and returns structured output."""
@@ -308,8 +279,7 @@ async def handle_tool_call(tool_call, db=None):
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
         "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool,
-        "send_telegram_tool": send_telegram_tool
+        "product_insert_tool": product_insert_tool
     }.get(tool_name)
 
     if not tool_fn:
