@@ -164,7 +164,9 @@ def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
             server.sendmail(os.getenv("SMTP_USER"), to_email, msg.as_string())
             server.quit()
 
+            print("----------- EMAIL TOOL -------------")
             print(f"[SUCCESS] Email sent to {to_email}")
+
 
             return {"status": "success", "message": f"Email sent to {to_email}"}
     except Exception as e:
@@ -358,4 +360,21 @@ async def get_all_mcp_tools():
     except Exception as e:
         print(f"Error getting MCP tools: {e}")
         return {}
+
+async def execute_tools_loop(client, messages, tools, model="gpt-4o-mini"):
+    """Execute tool calls in a loop until no more tools are needed"""
+    response = client.chat.completions.create(model=model, messages=messages, tools=tools)
+    response_message = response.choices[0].message
+    
+    while response_message.tool_calls:
+        messages.append(response_message)
+        
+        for tool_call in response_message.tool_calls:
+            result = await handle_tool_call(tool_call)
+            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result["message"]})
+        
+        response = client.chat.completions.create(model=model, messages=messages, tools=tools)
+        response_message = response.choices[0].message
+    
+    return response_message.content
 

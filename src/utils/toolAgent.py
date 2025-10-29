@@ -74,12 +74,19 @@ class ToolAgent:
             )
 
         # -------------------- Task Loop --------------------
-        while True:
+        max_iterations = 10
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
             did_end_loop = await self.make_api_requests()
             ended, result = did_end_loop
             if ended:
                 print('\033[92m=====result=====\033[0m', result)
                 break
+        
+        if iteration >= max_iterations:
+            print("⚠️ Max iterations reached")
+            self.result = self.result or "Task completed"
 
         store_message_db(self.session_id, "assistant", self.result)
         return self.result
@@ -102,15 +109,16 @@ class ToolAgent:
             # -------------------- Execute <use_mcp_tool> blocks --------------------
             tool_blocks = re.findall(r"<use_mcp_tool>.*?</use_mcp_tool>", assistant_reply, re.DOTALL)
             
-            for xml_tool_call in tool_blocks:
-                tool_call = parse_use_mcp_tool(xml_tool_call)
-                print('\033[92m=====tool_call=====\033[0m', tool_call)
+            if tool_blocks:
+                for xml_tool_call in tool_blocks:
+                    tool_call = parse_use_mcp_tool(xml_tool_call)
+                    print('\033[92m=====tool_call=====\033[0m', tool_call)
 
-                # -------------------- Execute the tool --------------------
-                result = await handle_tool_call(tool_call, self.db)
-                print('\033[92m=====tool_result=====\033[0m', result)
-                message = result.get("message", "")
-                self.add_to_history("assistant", f"[TOOL OUTPUT]\n{message}")
+                    # -------------------- Execute the tool --------------------
+                    result = await handle_tool_call(tool_call, self.db)
+                    print('\033[92m=====tool_result=====\033[0m', result)
+                    message = result.get("message", "")
+                    self.add_to_history("assistant", f"[TOOL OUTPUT]\n{message}")
 
             print("✅ All tool calls processed")
 
@@ -122,6 +130,14 @@ class ToolAgent:
                 match = re.search(r"<result>(.*?)</result>", content, re.DOTALL)
                 self.result = match.group(1).strip() if match else content
                 print("🏁 Completion detected, ending task loop.")
+                return True, self.result
+            
+            # If no tools were called and no completion tag, end with the reply
+            if not tool_blocks:
+                # Clean up [TOOL OUTPUT] from response
+                clean_reply = assistant_reply.replace("[TOOL OUTPUT]\n", "").strip()
+                self.result = clean_reply
+                print("🏁 No tools called, ending with reply")
                 return True, self.result
 
             print("✅ Continuing task loop...")
