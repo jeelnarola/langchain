@@ -46,7 +46,7 @@ class MCPClient:
     async def get_all_tools(self):
         if not self._initialized:
             await self.connect_all()
-        
+
         all_tools = {}
         for server_name, session in self.sessions.items():
             response = await session.list_tools()
@@ -60,7 +60,7 @@ class MCPClient:
     async def call_tool(self, server_name: str, tool_name: str, arguments: dict):
         if not self._initialized:
             await self.connect_all()
-        
+ 
         session = self.sessions.get(server_name)
         if not session:
             raise ValueError(f"Server '{server_name}' not found")

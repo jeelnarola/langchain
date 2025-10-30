@@ -4,7 +4,7 @@ from .documentsRoute import documentsRouter
 from .messagesRoute import messageRouter
 from .askRoute import askRouter
 from .usermemoryRoute import memoryRouter
-
+from .webhookRoute import webhookT
 from fastapi.templating import Jinja2Templates
 
 router = APIRouter()
@@ -24,4 +24,9 @@ router.include_router(askRouter, prefix="/ask")
 router.include_router(messageRouter, prefix="/messages")
 
 router.include_router(memoryRouter, prefix="/memory")
+
+router.include_router(webhookT, prefix="/webhook")
+
+
+
 

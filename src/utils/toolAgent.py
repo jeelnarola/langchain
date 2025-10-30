@@ -13,7 +13,7 @@ import re, json
 # Assume memory helpers are available
 
 class ToolAgent:
-    def __init__(self, session_id: str, api_client, tools_schema, db):
+    def __init__(self, session_id: str, api_client, tools_schema, db, context=None):
         self.session_id = session_id
         self.api_client = api_client
         self.tools_schema = tools_schema
@@ -21,6 +21,7 @@ class ToolAgent:
         self.tool_call_error_attempt = 0
         self.result = ""
         self.db = db
+        self.context = context or {}
 
     # -------------------- History Logging --------------------
     def add_to_history(
@@ -64,8 +65,13 @@ class ToolAgent:
         # -------------------- Prepare Context --------------------
         last_messages = self.message_history[-8:]  # last 8 messages
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in last_messages])
-        memory_text = retrieve_memory_db(self.db,k=3)  # last 3 saved memory items
+        memory_text = retrieve_memory_db(self.db, k=3)  # last 3 saved memory items
 
+        # Add Telegram context if available
+        # telegram_context = ""
+        # if self.context and "chat_id" in self.context:
+        #     telegram_context = f"\n\nTELEGRAM CONTEXT: You are responding to a Telegram message from chat_id {self.context['chat_id']}. Use send_message tool to reply directly to this chat. Do NOT use get_chats unless specifically asked to explore other conversations."
+        
         system_context = f"User memory:\n{memory_text}\nRecent history:\n{history_text}"
 
         if not any(msg["role"] == "system" for msg in self.message_history):
@@ -76,12 +82,19 @@ class ToolAgent:
             )
 
         # -------------------- Task Loop --------------------
-        while True:
+        max_iterations = 10
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
             did_end_loop = await self.make_api_requests()
             ended, result = did_end_loop
             if ended:
                 print('\033[92m=====result=====\033[0m', result)
                 break
+        
+        if iteration >= max_iterations:
+            print("⚠️ Max iterations reached")
+            self.result = self.result or "Task completed"
 
         store_message_db(self.session_id, "assistant", self.result)
         return self.result
@@ -104,15 +117,16 @@ class ToolAgent:
             # -------------------- Execute <use_mcp_tool> blocks --------------------
             tool_blocks = re.findall(r"<use_mcp_tool>.*?</use_mcp_tool>", assistant_reply, re.DOTALL)
             
-            for xml_tool_call in tool_blocks:
-                tool_call = parse_use_mcp_tool(xml_tool_call)
-                print('\033[92m=====tool_call=====\033[0m', tool_call)
+            if tool_blocks:
+                for xml_tool_call in tool_blocks:
+                    tool_call = parse_use_mcp_tool(xml_tool_call)
+                    print('\033[92m=====tool_call=====\033[0m', tool_call)
 
-                # -------------------- Execute the tool --------------------
-                result = await handle_tool_call(tool_call, self.db)
-                print('\033[92m=====tool_result=====\033[0m', result)
-                message = result.get("message", "")
-                self.add_to_history("assistant", f"[TOOL OUTPUT]\n{message}")
+                    # -------------------- Execute the tool --------------------
+                    result = await handle_tool_call(tool_call, self.db, self.context)
+                    print('\033[92m=====tool_result=====\033[0m', result)
+                    message = result.get("message", "")
+                    self.add_to_history("assistant", f"[TOOL OUTPUT]\n{message}")
 
             print("✅ All tool calls processed")
 
@@ -125,6 +139,8 @@ class ToolAgent:
                 self.result = match.group(1).strip() if match else content
                 print("🏁 Completion detected, ending task loop.")
                 return True, self.result
+            
+
 
             print("✅ Continuing task loop...")
             self.add_to_history("assistant", assistant_reply)

@@ -1,36 +1,36 @@
-import json, os, inspect, datetime, requests
+import json
+import os
+import inspect
+import datetime
+import requests
+import sys
+import smtplib
+import xml.etree.ElementTree as ET
 from typing import Callable, Dict
 from dotenv import load_dotenv
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+from openai import OpenAI
 
 from services.documentService import get_all_vector_paths
 from services.productService import save_product_db
-# from services.emailService import save_email_db
 
-from langchain_openai import OpenAIEmbeddings
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from mcp_client import mcp_client, call_mcp_tool
-
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 # --- Tool Registry ---
 TOOLS: Dict[str, Callable] = {}
 load_dotenv()
 
-def get_embeddings():
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    return OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-
-from openai import OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+def get_embeddings():
+    return OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 
 
 def weather_tool(city: str) -> dict:
@@ -47,51 +47,50 @@ def weather_tool(city: str) -> dict:
     today = datetime.date.today().strftime("%Y-%m-%d")
 
     weather_url = "https://api.open-meteo.com/v1/forecast"
-    params = {"latitude": lat, "longitude": lon, "current_weather": True, "timezone": "auto"}
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "current_weather": True,
+        "timezone": "auto",
+    }
     weather_resp = requests.get(weather_url, params=params)
     weather_data = weather_resp.json()
     current = weather_data.get("current_weather", {})
     temperature = current.get("temperature")
 
-    response = {
+    return {
         "location": city,
         "lat": lat,
         "lon": lon,
         "date": today,
         "weather": current,
-        "message": f"The current temperature in {city} is {temperature}°C."
+        "message": f"The current temperature in {city} is {temperature}°C.",
     }
 
-    print("----------- WEATHER TOOL -------------")
-    print("User query (city):", response)
-    return response
 
 def pdf_tool(query: str, db=None) -> str:
-    print("Query :-", query)
     if not db:
         from config.database import get_db
         db = next(get_db())
+    
     vector_paths = get_all_vector_paths(db)
     if not vector_paths:
         return "No PDF documents available."
 
     retriever_docs = []
     for vector_path in vector_paths:
-        print("Loading Chroma from:", vector_path)
         store = Chroma(
             persist_directory=vector_path,
             embedding_function=get_embeddings(),
         )
         docs = store.similarity_search(query, k=3)
-        print(f"Docs found in {vector_path}:", len(docs))
         retriever_docs.extend(docs)
 
     if not retriever_docs:
         return "No relevant information found in PDF."
 
     context = "\n\n".join([doc.page_content for doc in retriever_docs[:5]])
-    print("---- PDF context loaded ----")
-
+    
     extraction_prompt = f"""
 You are an assistant that extracts concise, direct answers from PDF context.
 
@@ -108,19 +107,16 @@ Instruction:
     summary = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "system", "content": extraction_prompt}],
-        stream=False
+        stream=False,
     )
 
-    final_answer = summary.choices[0].message.content.strip()
-    print("✅ Cleaned final answer:", final_answer)
-    return final_answer
+    return summary.choices[0].message.content.strip()
 
 
-def product_insert_tool(name: str, price: float, description: str, category: str = "general",**kwargs) -> dict:
+def product_insert_tool(
+    name: str, price: float, description: str, category: str = "general", **kwargs
+) -> dict:
     """Insert a new product into the system."""
-    # Example: insert into DB (here we just mock it)
-    print("----------- PRODUCT TOOL CALLING -------------")
-
     product = {
         "name": name,
         "price": price,
@@ -128,13 +124,9 @@ def product_insert_tool(name: str, price: float, description: str, category: str
         "description": description,
         "created_at": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
     }
-    print("User query (context):", kwargs.get("user_query"))
-
-    # ✅ Insert into DB
+    
     save_product_db(product)
-    print("----------- PRODUCT TOOL -------------")
-
-    print("🛒 Product Inserted:", product)
+    
     return {
         "status": "success",
         "message": "Product inserted successfully",
@@ -142,98 +134,27 @@ def product_insert_tool(name: str, price: float, description: str, category: str
     }
 
 
-
 def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
-    """
-    Tool to either send an email via SMTP or save it to DB only.
-    mode = "send" → send + save in DB
-    mode = "save" → only save in DB
-    """
+    """Send an email via SMTP."""
     try:
-            # Build message
-            msg = MIMEMultipart()
-            msg["From"] = os.getenv("SMTP_USER")
-            msg["To"] = to_email
-            msg["Subject"] = subject
-            msg.attach(MIMEText(body, "plain"))
+        msg = MIMEMultipart()
+        msg["From"] = os.getenv("SMTP_USER")
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
 
-            # ✅ SMTP config
-            server = smtplib.SMTP(os.getenv("SMTP_SERVER"), int(os.getenv("SMTP_PORT")))
-            server.starttls()
-            server.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASSWORD"))
-            server.sendmail(os.getenv("SMTP_USER"), to_email, msg.as_string())
-            server.quit()
+        server = smtplib.SMTP(os.getenv("SMTP_SERVER"), int(os.getenv("SMTP_PORT")))
+        server.starttls()
+        server.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASSWORD"))
+        server.sendmail(os.getenv("SMTP_USER"), to_email, msg.as_string())
+        server.quit()
 
-            print(f"[SUCCESS] Email sent to {to_email}")
-
-            return {"status": "success", "message": f"Email sent to {to_email}"}
+        return {"status": "success", "message": f"Email sent to {to_email}"}
     except Exception as e:
-        print("[ERROR] Error in send_email_tool:", e)
         return {"status": "error", "message": str(e)}
 
 
-
-# async def handle_tool_call(tool_call):
-#     """Executes a tool call and returns structured output."""
-#     if isinstance(tool_call, dict):
-#         tool_name = tool_call["function"]["name"]
-#         tool_args_raw = tool_call["function"]["arguments"]
-#     else:
-#         tool_name = tool_call.function.name
-#         tool_args_raw = tool_call.function.arguments
-#     if isinstance(tool_args_raw, str):
-#         try:
-#             tool_args = json.loads(tool_args_raw) if tool_args_raw else {}
-#         except json.JSONDecodeError:
-#             tool_args = {}
-#     elif isinstance(tool_args_raw, dict):
-#         tool_args = tool_args_raw
-#     else:
-#         tool_args = {}
-
-#     print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
-
-#     tool_fn = {
-#         "pdf_tool": pdf_tool,
-#         "weather_tool": weather_tool,
-#         "product_insert_tool": product_insert_tool,
-#         "send_email_tool": send_email_tool,
-#     }.get(tool_name)
-
-#     if not tool_fn:
-#         return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
-
-#     try:
-#         if inspect.iscoroutinefunction(tool_fn):
-#             tool_output = await tool_fn(**tool_args)
-#         else:
-#             tool_output = tool_fn(**tool_args)
-
-#         if isinstance(tool_output, dict):
-#             tool_message = tool_output.get("message", json.dumps(tool_output))
-#         else:
-#             tool_message = str(tool_output)
-
-#         return {
-#             "status": "success",
-#             "tool": tool_name,
-#             "result": tool_output,
-#             "message": f"<final>{tool_message}</final>"
-#         }
-
-#     except Exception as e:
-#         return {
-#             "status": "error",
-#             "tool": tool_name,
-#             "result": None,
-#             "message": f"<final>Tool execution failed: {str(e)}</final>"
-#         }
-    
-
-
-#     import xml.etree.ElementTree as ET
-
-async def handle_tool_call(tool_call, db=None):
+async def handle_tool_call(tool_call, db=None, context=None):
     """Executes a tool call and returns structured output."""
     if isinstance(tool_call, dict):
         tool_name = tool_call["function"]["name"]
@@ -254,42 +175,58 @@ async def handle_tool_call(tool_call, db=None):
     else:
         tool_args = {}
 
-    print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
-    
     # Check if this is an MCP tool call
     if server_name:
         try:
+            # Set chat_id from context if available
+            print(f"Debug: context={context}, tool_name={tool_name}")
+            if context and "chat_id" in context and tool_name == "send_message":
+                print(f"🔧 Replacing chat_id {tool_args.get('chat_id')} with {context['chat_id']}")
+                tool_args["chat_id"] = context["chat_id"]
+            else:
+                print("❌ No chat_id replacement - missing context or not send_message")
+            
             result = await call_mcp_tool(server_name, tool_name, tool_args)
+            # Extract simple message from MCP result
+            if isinstance(result, list) and result:
+                message = result[0].text if hasattr(result[0], 'text') else str(result[0])
+            else:
+                message = str(result) if result else "MCP tool executed successfully"
+            
             return {
                 "status": "success",
                 "tool": tool_name,
                 "result": result,
-                "message": result or "MCP tool executed successfully"
+                "message": message,
             }
         except Exception as e:
             return {
                 "status": "error",
                 "tool": tool_name,
                 "result": None,
-                "message": f"MCP tool execution failed: {str(e)}"
+                "message": f"MCP tool execution failed: {str(e)}",
             }
-    
+
     # Handle local tools
     tool_fn = {
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
         "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool
+        "product_insert_tool": product_insert_tool,
     }.get(tool_name)
 
     if not tool_fn:
-        return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
+        return {
+            "status": "error",
+            "tool": tool_name,
+            "message": f"Unknown tool {tool_name}",
+        }
 
     try:
         # Add db parameter for tools that need it
         if tool_name == "pdf_tool" and db:
             tool_args["db"] = db
-            
+
         if inspect.iscoroutinefunction(tool_fn):
             tool_output = await tool_fn(**tool_args)
         else:
@@ -299,12 +236,12 @@ async def handle_tool_call(tool_call, db=None):
             tool_message = tool_output.get("message", json.dumps(tool_output))
         else:
             tool_message = str(tool_output)
-        print("Tool message:", tool_message)
+
         return {
             "status": "success",
             "tool": tool_name,
             "result": tool_output,
-            "message": f"{tool_message}"
+            "message": tool_message,
         }
 
     except Exception as e:
@@ -312,24 +249,21 @@ async def handle_tool_call(tool_call, db=None):
             "status": "error",
             "tool": tool_name,
             "result": None,
-            "message": f"Tool execution failed: {str(e)}"
+            "message": f"Tool execution failed: {str(e)}",
         }
 
-import xml.etree.ElementTree as ET
 
 def parse_use_mcp_tool(xml_call: str) -> dict:
     """Parse <use_mcp_tool> XML into a dict."""
     xml_call = xml_call.strip()
     if not xml_call.startswith("<use_mcp_tool>") or not xml_call.endswith("</use_mcp_tool>"):
-        print("❌ Not a valid <use_mcp_tool> block, skipping.")
         return {}
 
     try:
         root = ET.fromstring(xml_call)
-    except ET.ParseError as e:
-        print(f"❌ Failed to parse XML: {e}")
+    except ET.ParseError:
         return {}
-
+    
     server_name = root.findtext("server_name")
     tool_name = root.findtext("tool_name")
     args_elem = root.find("arguments")
@@ -345,11 +279,11 @@ def parse_use_mcp_tool(xml_call: str) -> dict:
     except json.JSONDecodeError:
         tool_args = {}
 
-    print('\033[92m=====tool_name=====\033[0m', tool_name)
     return {
         "function": {"name": tool_name, "arguments": tool_args},
-        "server_name": server_name
+        "server_name": server_name,
     }
+
 
 async def get_all_mcp_tools():
     """Get all available tools from all MCP servers"""
@@ -358,4 +292,3 @@ async def get_all_mcp_tools():
     except Exception as e:
         print(f"Error getting MCP tools: {e}")
         return {}
-
