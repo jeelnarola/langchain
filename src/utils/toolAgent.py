@@ -82,7 +82,7 @@ class ToolAgent:
             )
 
         # -------------------- Task Loop --------------------
-        max_iterations = 10
+        max_iterations = 5
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
@@ -127,6 +127,8 @@ class ToolAgent:
                     print('\033[92m=====tool_result=====\033[0m', result)
                     message = result.get("message", "")
                     self.add_to_history("assistant", f"[TOOL OUTPUT]\n{message}")
+                    
+
 
             print("✅ All tool calls processed")
 
@@ -139,8 +141,6 @@ class ToolAgent:
                 self.result = match.group(1).strip() if match else content
                 print("🏁 Completion detected, ending task loop.")
                 return True, self.result
-            
-
 
             print("✅ Continuing task loop...")
             self.add_to_history("assistant", assistant_reply)
