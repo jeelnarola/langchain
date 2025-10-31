@@ -49,13 +49,22 @@ async def handle_telegram_webhook(request: Request):
         context = {"chat_id": int(chat_id)}
         print(f"🎯 Setting context with chat_id: {context}")
         store_message_db(session_id = chat_id, role = "user", message = message)
+        # Validate OpenAI API key
+        if not OPENAI_API_KEY:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+            
         agent = ToolAgent(session_id=chat_id, api_client=client, tools_schema=tools_schema, db=db)
         agent.context = context  # Set context on agent
-        response_text = await agent.start_task(message, conversation_history=[])
+        
+        try:
+            response_text = await agent.start_task(message, conversation_history=[])
+        except Exception as api_error:
+            print(f"❌ API Error: {api_error}")
+            response_text = "Sorry, I'm experiencing connection issues. Please try again later."
         
         print(f"Generated reply: {response_text}")
         return {"reply": response_text}
-    
+            
     except HTTPException:
         raise
     except Exception as e:
