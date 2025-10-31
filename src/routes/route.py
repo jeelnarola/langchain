@@ -36,6 +36,7 @@ from controllers.telegramController import handle_telegram_webhook
 
 @router.post("/chat")
 async def chat_endpoint(request: Request):
+    print(111111111111111111111111111111111111111111111111111111)
     """Direct chat endpoint"""
     return await handle_telegram_webhook(request)
 

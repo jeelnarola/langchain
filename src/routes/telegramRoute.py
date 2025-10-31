@@ -10,5 +10,10 @@ async def telegram_webhook(request: Request):
 
 @router.post("/chat")
 async def telegram_chat(request: Request):
-    """Simple chat endpoint for telegram"""
+    """Chat endpoint for telegram-mcp integration"""
     return await handle_telegram_webhook(request)
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "ok", "service": "telegram-webhook"}

@@ -1,13 +1,14 @@
 {
   "mcpServers": {
     "telegram-mcp": {
-      "command": "uv",
+      "command": "C:\\Users\\HP\\.local\\bin\\uv",
       "args": [
         "--directory",
         "D:\\mcp_server\\telegram-mcp",
         "run",
         "main.py"
-      ]
+      ],
+      "is_active": true
     },
     "whatsapp": {
       "command": "C:\\Users\\HP\\.local\\bin\\uv",

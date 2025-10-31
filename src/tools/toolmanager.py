@@ -71,20 +71,29 @@ def pdf_tool(query: str, db=None) -> str:
     if not db:
         from config.database import get_db
         db = next(get_db())
-    vector_paths = get_all_vector_paths(db)
-    if not vector_paths:
-        return "No PDF documents available."
+    
+    # Try to use global vectorstore first
+    from controllers.documentController import global_vectorstore
+    
+    if global_vectorstore is not None:
+        print("Using global vectorstore")
+        retriever_docs = global_vectorstore.similarity_search(query, k=5)
+    else:
+        # Fallback: load from individual vector paths
+        vector_paths = get_all_vector_paths(db)
+        if not vector_paths:
+            return "No PDF documents available."
 
-    retriever_docs = []
-    for vector_path in vector_paths:
-        print("Loading Chroma from:", vector_path)
-        store = Chroma(
-            persist_directory=vector_path,
-            embedding_function=get_embeddings(),
-        )
-        docs = store.similarity_search(query, k=3)
-        print(f"Docs found in {vector_path}:", len(docs))
-        retriever_docs.extend(docs)
+        retriever_docs = []
+        for vector_path in vector_paths:
+            print("Loading Chroma from:", vector_path)
+            store = Chroma(
+                persist_directory=vector_path,
+                embedding_function=get_embeddings(),
+            )
+            docs = store.similarity_search(query, k=3)
+            print(f"Docs found in {vector_path}:", len(docs))
+            retriever_docs.extend(docs)
 
     if not retriever_docs:
         return "No relevant information found in PDF."

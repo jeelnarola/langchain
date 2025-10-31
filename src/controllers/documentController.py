@@ -15,8 +15,8 @@ from fastapi.responses import JSONResponse
 from langchain_community.document_loaders import PyMuPDFLoader
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
 
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,10 @@ load_dotenv()  # Load environment variables
 sessions: Dict[str, Dict[str, Any]] = {}  # All sessions live here
 vectorstores: Dict[str, Any] = {}
 default_vectorstore: Optional[Any] = None
-global_vectorstore = None
+
+# Load global vectorstore on startup
+from utils.vectorstore_loader import load_global_vectorstore
+global_vectorstore = load_global_vectorstore()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
@@ -158,15 +161,20 @@ async def upload_pdf(files: list[UploadFile], db: Session):
                 chunk.metadata["source"] = file.filename
 
             # Update global vectorstore
+            global_path = os.path.join(VECTOR_DIR, "global")
             if global_vectorstore is None:
-                global_vectorstore = Chroma.from_documents(
-                    documents=chunks,
-                    embedding=embeddings,
-                    persist_directory=os.path.join(VECTOR_DIR, "global"),
-                )
+                if os.path.exists(global_path):
+                    global_vectorstore = Chroma(persist_directory=global_path, embedding_function=embeddings)
+                    global_vectorstore.add_documents(chunks)
+                else:
+                    global_vectorstore = Chroma.from_documents(
+                        documents=chunks,
+                        embedding=embeddings,
+                        persist_directory=global_path,
+                    )
             else:
                 global_vectorstore.add_documents(chunks)
-                global_vectorstore.persist()
+            global_vectorstore.persist()
 
             # Create per-file vector store
             vector_file_name = f"{uuid.uuid4()}"
@@ -219,14 +227,13 @@ async def delete_document_by_id(doc_id: int, db: Session):
         if not deleted:
             return {"message": f"Failed to delete document ID {doc_id}"}
 
-        # Delete FAISS vector files from disk
-        for ext in [".faiss", ".pkl"]:
-            path = vector_path + ext
-            if os.path.exists(path):
-                os.remove(path)
-
-        # Optionally clear in-memory store
-        global_vectorstore = None
+        # Delete Chroma vector directory
+        import shutil
+        if os.path.exists(vector_path):
+            shutil.rmtree(vector_path)
+        
+        # Reload global vectorstore
+        global_vectorstore = load_global_vectorstore()
 
         return {"message": f"Deleted document ID {doc_id} and associated vector files."}
 

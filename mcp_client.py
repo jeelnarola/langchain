@@ -1,3 +1,4 @@
+
 import os
 import json
 import asyncio
@@ -23,29 +24,45 @@ class MCPClient:
         servers = self.config.get("mcpServers", {})
 
         for name, server_info in servers.items():
-            command = server_info.get("command")
-            args = server_info.get("args")
+            try:
+                if not server_info.get("is_active", True):
+                    print(f"[SKIP] Skipping {name} (inactive)")
+                    continue
+                    
+                command = server_info.get("command")
+                args = server_info.get("args")
 
-            print(f"🔗 Connecting to {name}: {command} {args}")
+                print(f"[CONNECT] Connecting to {name}: {command} {args}")
 
-            server_params = StdioServerParameters(command=command, args=args, env=None)
-            stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-            stdio, write = stdio_transport
-            session = await self.exit_stack.enter_async_context(ClientSession(stdio, write))
+                server_params = StdioServerParameters(command=command, args=args, env=None)
+                
+                # Add timeout to prevent hanging
+                stdio_transport = await asyncio.wait_for(
+                    self.exit_stack.enter_async_context(stdio_client(server_params)),
+                    timeout=10.0
+                )
+                stdio, write = stdio_transport
+                session = await self.exit_stack.enter_async_context(ClientSession(stdio, write))
 
-            await session.initialize()
-            self.sessions[name] = session
+                await asyncio.wait_for(session.initialize(), timeout=10.0)
+                self.sessions[name] = session
 
-            response = await session.list_tools()
-            print(f"✅ {name} tools:", [tool.name for tool in response.tools])
+                response = await asyncio.wait_for(session.list_tools(), timeout=5.0)
+                print(f"[OK] {name} tools:", [tool.name for tool in response.tools])
+            except asyncio.TimeoutError:
+                print(f"[ERROR] Timeout connecting to {name} (server not responding)")
+                continue
+            except Exception as e:
+                print(f"[ERROR] Failed to connect to {name}: {e}")
+                continue
 
         self._initialized = True
-        print("\n🚀 All servers connected successfully!")
+        print("\n[SUCCESS] All servers connected successfully!")
 
     async def get_all_tools(self):
         if not self._initialized:
             await self.connect_all()
-        
+
         all_tools = {}
         for server_name, session in self.sessions.items():
             response = await session.list_tools()
@@ -59,10 +76,10 @@ class MCPClient:
     async def call_tool(self, server_name: str, tool_name: str, arguments: dict):
         if not self._initialized:
             await self.connect_all()
-        
+ 
         session = self.sessions.get(server_name)
         if not session:
-            raise ValueError(f"Server '{server_name}' not found")
+            raise ValueError(f"Server '{server_name}' not found. Available servers: {list(self.sessions.keys())}")
         
         result = await session.call_tool(tool_name, arguments)
         return result.content

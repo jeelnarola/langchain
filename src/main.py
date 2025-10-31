@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.database import Base, engine
-from model.tableModel import UserMemory,ChatMessage,UploadedPDF,Product,Sessions
+# from model.tableModel import UserMemory,ChatMessage,UploadedPDF,Product,Sessions
 
 from routes.route import router
 
@@ -15,7 +15,7 @@ from routes.route import router
 load_dotenv()
 
 # FastAPI app
-app = FastAPI()
+app = FastAPI(debug=True)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,7 +27,7 @@ app.add_middleware(
 app.include_router(router)  # Include API routes
 
 
-Base.metadata.create_all(bind=engine)
+# Base.metadata.create_all(bind=engine)
 
 
 if __name__ == "__main__":
