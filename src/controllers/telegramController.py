@@ -48,6 +48,7 @@ async def handle_telegram_webhook(request: Request):
         context = {"chat_id": int(chat_id)}
         print(f"🎯 Setting context with chat_id: {context}")
         agent = ToolAgent(session_id=chat_id, api_client=client, tools_schema=tools_schema, db=db)
+        agent.context = context  # Set context on agent
         response_text = await agent.start_task(message, conversation_history=[])
         
         print(f"Generated reply: {response_text}")
