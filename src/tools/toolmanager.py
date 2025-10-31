@@ -67,40 +67,28 @@ def weather_tool(city: str) -> dict:
     return response
 
 def pdf_tool(query: str, db=None) -> str:
-    print("Query :-", query)
     if not db:
         from config.database import get_db
         db = next(get_db())
     
-    # Try to use global vectorstore first
-    from controllers.documentController import global_vectorstore
-    
-    if global_vectorstore is not None:
-        print("Using global vectorstore")
-        retriever_docs = global_vectorstore.similarity_search(query, k=5)
-    else:
-        # Fallback: load from individual vector paths
-        vector_paths = get_all_vector_paths(db)
-        if not vector_paths:
-            return "No PDF documents available."
+    vector_paths = get_all_vector_paths(db)
+    if not vector_paths:
+        return "No PDF documents available."
 
-        retriever_docs = []
-        for vector_path in vector_paths:
-            print("Loading Chroma from:", vector_path)
-            store = Chroma(
-                persist_directory=vector_path,
-                embedding_function=get_embeddings(),
-            )
-            docs = store.similarity_search(query, k=3)
-            print(f"Docs found in {vector_path}:", len(docs))
-            retriever_docs.extend(docs)
+    retriever_docs = []
+    for vector_path in vector_paths:
+        store = Chroma(
+            persist_directory=vector_path,
+            embedding_function=get_embeddings(),
+        )
+        docs = store.similarity_search(query, k=3)
+        retriever_docs.extend(docs)
 
     if not retriever_docs:
         return "No relevant information found in PDF."
 
     context = "\n\n".join([doc.page_content for doc in retriever_docs[:5]])
-    print("---- PDF context loaded ----")
-
+    
     extraction_prompt = f"""
 You are an assistant that extracts concise, direct answers from PDF context.
 
@@ -117,12 +105,10 @@ Instruction:
     summary = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "system", "content": extraction_prompt}],
-        stream=False
+        stream=False,
     )
 
-    final_answer = summary.choices[0].message.content.strip()
-    print("✅ Cleaned final answer:", final_answer)
-    return final_answer
+    return summary.choices[0].message.content.strip()
 
 
 def product_insert_tool(name: str, price: float, description: str, category: str = "general",**kwargs) -> dict:
