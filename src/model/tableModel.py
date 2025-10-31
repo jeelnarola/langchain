@@ -15,6 +15,7 @@ class Sessions(Base):
 
 
 class ChatMessage(Base):
+
     __tablename__ = "chat_messages"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

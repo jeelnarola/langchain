@@ -7,6 +7,7 @@ from utils.toolAgent import ToolAgent
 from config.database import get_db
 from controllers import askControllers
 from model.tableModel import Sessions
+from utils.createSession import store_message_db
 
 load_dotenv()
 
@@ -47,6 +48,7 @@ async def handle_telegram_webhook(request: Request):
         
         context = {"chat_id": int(chat_id)}
         print(f"🎯 Setting context with chat_id: {context}")
+        store_message_db(session_id = chat_id, role = "user", message = message)
         agent = ToolAgent(session_id=chat_id, api_client=client, tools_schema=tools_schema, db=db)
         agent.context = context  # Set context on agent
         response_text = await agent.start_task(message, conversation_history=[])

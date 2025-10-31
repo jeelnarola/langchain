@@ -57,7 +57,7 @@ def weather_tool(city: str) -> dict:
     weather_data = weather_resp.json()
     current = weather_data.get("current_weather", {})
     temperature = current.get("temperature")
-
+    print('\033[92m=====weather_tool=====\033[0m')
     return {
         "location": city,
         "lat": lat,
@@ -190,6 +190,7 @@ async def handle_tool_call(tool_call, db=None, context=None):
             # Extract simple message from MCP result
             if isinstance(result, list) and result:
                 message = result[0].text if hasattr(result[0], 'text') else str(result[0])
+                print('\033[92m=====message=====\033[0m',message)
             else:
                 message = str(result) if result else "MCP tool executed successfully"
             

@@ -24,10 +24,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ✅ Health check endpoint
 @app.get("/gethealth")
 def get_health():
     return {"status": "ok", "message": "API is healthy"}
+
 
 # ✅ Include all routes
 app.include_router(router)
