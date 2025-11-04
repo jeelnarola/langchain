@@ -9,7 +9,7 @@ from utils.createSession import (
     save_memory_db,
 )
 import re, json
-from services.mem0_usage import add_to_mem0, retrieve_mem0  
+# from services.mem0_usage import add_to_mem0, retrieve_mem0  
 
 # Assume memory helpers are available
 
@@ -22,6 +22,11 @@ class ToolAgent:
         self.tool_call_error_attempt = 0
         self.result = ""
         self.db = db
+        self.context = {}
+    
+    def set_context(self, **kwargs):
+        """Set context data like chat_id for tool execution"""
+        self.context.update(kwargs)
 
     # -------------------- History Logging --------------------
     def add_to_history(
@@ -55,14 +60,17 @@ class ToolAgent:
 
         # -------------------- Extract & Save User Info --------------------
         try:
-            add_to_mem0(user_id=self.session_id,messages=[{"role": "user", "content": task}])
+            extracted = extract_memory([{"role": "user", "content": task}])
+            if extracted:
+                for field, value in extracted.items():
+                    save_memory_db(field, value)
         except Exception as e:
             print(f"❌ Error extracting memory: {e}")
 
         # -------------------- Prepare Context --------------------
         last_messages = self.message_history[-8:]  # last 8 messages
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in last_messages])
-        memory_text = retrieve_mem0(user_id=self.session_id,question=task) # last 3 saved memory items
+        memory_text = retrieve_memory_db(self.db, k=3) # last 3 saved memory items
 
         system_context = f"User memory:\n{memory_text}\nRecent history:\n{history_text}"
 
@@ -115,7 +123,9 @@ class ToolAgent:
                     print('\033[92m=====tool_call=====\033[0m', tool_call)
 
                     # -------------------- Execute the tool --------------------
-                    result = await handle_tool_call(tool_call, self.db)
+                    # Create context with chat_id if available
+                    context = getattr(self, 'context', None) or {}
+                    result = await handle_tool_call(tool_call, self.db, context)
                     print('\033[92m=====tool_result=====\033[0m', result)
                     message = result.get("message", "")
                     self.add_to_history("assistant", f"[TOOL OUTPUT]\n{message}")

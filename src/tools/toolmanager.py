@@ -230,7 +230,7 @@ def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
 
 #     import xml.etree.ElementTree as ET
 
-async def handle_tool_call(tool_call, db=None):
+async def handle_tool_call(tool_call, db=None, context=None):
     """Executes a tool call and returns structured output."""
     if isinstance(tool_call, dict):
         tool_name = tool_call["function"]["name"]
