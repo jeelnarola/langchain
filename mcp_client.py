@@ -64,7 +64,7 @@ class MCPClient:
         session = self.sessions.get(server_name)
         if not session:
             raise ValueError(f"Server '{server_name}' not found")
-        
+        print('\033[92m=====call_tool=====\033[0m',arguments)
         result = await session.call_tool(tool_name, arguments)
         return result.content
 
@@ -75,6 +75,7 @@ class MCPClient:
 mcp_client = MCPClient()
 
 async def call_mcp_tool(server_name: str, tool_name: str, arguments: dict):
+    print('\033[92m=====arguments=====\033[0m',arguments)
     return await mcp_client.call_tool(server_name, tool_name, arguments)
 
 if __name__ == "__main__":

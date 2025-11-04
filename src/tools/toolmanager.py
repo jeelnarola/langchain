@@ -154,6 +154,7 @@ def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
         return {"status": "error", "message": str(e)}
 
 
+
 async def handle_tool_call(tool_call, db=None, context=None):
     """Executes a tool call and returns structured output."""
     if isinstance(tool_call, dict):
@@ -175,59 +176,49 @@ async def handle_tool_call(tool_call, db=None, context=None):
     else:
         tool_args = {}
 
+    print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
+    
     # Check if this is an MCP tool call
     if server_name:
         try:
-            # Set chat_id from context if available
-            print(f"Debug: context={context}, tool_name={tool_name}")
-            if context and "chat_id" in context and tool_name == "send_message":
-                print(f"🔧 Replacing chat_id {tool_args.get('chat_id')} with {context['chat_id']}")
+            # Inject chat_id for telegram tools
+            if server_name == "telegram-mcp" and context and "chat_id" in context:
                 tool_args["chat_id"] = context["chat_id"]
-            else:
-                print("❌ No chat_id replacement - missing context or not send_message")
+                # Remove null chat_id if present
+                if tool_args.get("chat_id") is None:
+                    tool_args["chat_id"] = context["chat_id"]
             
             result = await call_mcp_tool(server_name, tool_name, tool_args)
-            # Extract simple message from MCP result
-            if isinstance(result, list) and result:
-                message = result[0].text if hasattr(result[0], 'text') else str(result[0])
-                print('\033[92m=====message=====\033[0m',message)
-            else:
-                message = str(result) if result else "MCP tool executed successfully"
-            
             return {
                 "status": "success",
                 "tool": tool_name,
                 "result": result,
-                "message": message,
+                "message": result or "MCP tool executed successfully"
             }
         except Exception as e:
             return {
                 "status": "error",
                 "tool": tool_name,
                 "result": None,
-                "message": f"MCP tool execution failed: {str(e)}",
+                "message": f"MCP tool execution failed: {str(e)}"
             }
-
+    
     # Handle local tools
     tool_fn = {
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
         "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool,
+        "product_insert_tool": product_insert_tool
     }.get(tool_name)
 
     if not tool_fn:
-        return {
-            "status": "error",
-            "tool": tool_name,
-            "message": f"Unknown tool {tool_name}",
-        }
+        return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
 
     try:
         # Add db parameter for tools that need it
         if tool_name == "pdf_tool" and db:
             tool_args["db"] = db
-
+            
         if inspect.iscoroutinefunction(tool_fn):
             tool_output = await tool_fn(**tool_args)
         else:
@@ -237,12 +228,12 @@ async def handle_tool_call(tool_call, db=None, context=None):
             tool_message = tool_output.get("message", json.dumps(tool_output))
         else:
             tool_message = str(tool_output)
-
+        print("Tool message:", tool_message)
         return {
             "status": "success",
             "tool": tool_name,
             "result": tool_output,
-            "message": tool_message,
+            "message": f"{tool_message}"
         }
 
     except Exception as e:
@@ -250,8 +241,10 @@ async def handle_tool_call(tool_call, db=None, context=None):
             "status": "error",
             "tool": tool_name,
             "result": None,
-            "message": f"Tool execution failed: {str(e)}",
+            "message": f"Tool execution failed: {str(e)}"
         }
+
+# import xml.etree.ElementTree as ET
 
 
 def parse_use_mcp_tool(xml_call: str) -> dict:
