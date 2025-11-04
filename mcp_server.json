@@ -18,6 +18,21 @@
         "run",
         "main.py"
       ]
+    },
+    "youtube": {
+      "command": "C:\\Users\\HP\\.local\\bin\\uv",
+      "args": [
+        "--directory",
+        "D:\\Youtube-MCP",
+        "run",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "GOOGLE_API_KEY": "AIzaSyDoknkaHRtsCn1OtU7vZfVzieoJDMEGcs8"
+      },
+      "is_active": true
     }
   }
 }
+
