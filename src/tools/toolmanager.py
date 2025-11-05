@@ -134,22 +134,27 @@ def product_insert_tool(
     }
 
 
-def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
+def send_email_tool(to_email: str = None, subject: str = "", body: str = "", mode: str = "send", to: str = None, **kwargs):
     """Send an email via SMTP."""
+    # Handle both 'to' and 'to_email' parameter names
+    recipient = to_email or to
+    if not recipient:
+        return {"status": "error", "message": "No recipient email provided"}
+    
     try:
         msg = MIMEMultipart()
         msg["From"] = os.getenv("SMTP_USER")
-        msg["To"] = to_email
+        msg["To"] = recipient
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
 
         server = smtplib.SMTP(os.getenv("SMTP_SERVER"), int(os.getenv("SMTP_PORT")))
         server.starttls()
         server.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASSWORD"))
-        server.sendmail(os.getenv("SMTP_USER"), to_email, msg.as_string())
+        server.sendmail(os.getenv("SMTP_USER"), recipient, msg.as_string())
         server.quit()
-
-        return {"status": "success", "message": f"Email sent to {to_email}"}
+        print('\033[92m=====send_email_tool=====\033[0m')
+        return {"status": "success", "message": f"Email sent to {recipient}"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

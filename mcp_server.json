@@ -1,13 +1,25 @@
 {
-    "mcpServers": {
-        "telegram-mcp": {
-            "command": "uv",
-            "args": [
-                "--directory",
-                "D:\\mcptool\\telegram-mcp",
-                "run",
-                "main.py"
-            ]
-        }
+  "mcpServers": {
+    "telegram-mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\mcptool\\telegram-mcp",
+        "run",
+        "main.py"
+      ]
+    },
+    "youtube": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "D:\\mcptool\\Youtube-MCP",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "GOOGLE_API_KEY": "YOUR_GOOGLE_API_KEY_HERE"
+      }
     }
+  }
 }

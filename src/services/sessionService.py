@@ -17,7 +17,11 @@ def insert_session(db: Session, name: str) -> SessionModel:
     """
     Insert a new session into the database.
     """
-    new_session = SessionModel(name=name)
+    # Get the next available ID
+    max_id = db.query(SessionModel.id).order_by(SessionModel.id.desc()).first()
+    next_id = (max_id[0] + 1) if max_id and max_id[0] else 1
+    
+    new_session = SessionModel(id=next_id, name=name)
     db.add(new_session)
     db.commit()
     db.refresh(new_session)

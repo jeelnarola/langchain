@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 class Sessions(Base):
     __tablename__ = "sessions"
 
-    id = Column(BigInteger, primary_key=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(255), default="New Chat")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
