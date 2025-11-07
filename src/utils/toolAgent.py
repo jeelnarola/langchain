@@ -63,14 +63,13 @@ class ToolAgent:
         # TOOL FINDER
         finder_prompt = await build_tool_finder_prompt(self.tools_schema, memory_text, history_text)
         self.message_history.insert(0, {"role": "system", "content": finder_prompt})
-
         response = self.api_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=self.message_history,
             temperature=0.0,
             max_tokens=400,
         )
-
+        print('\033[92m==========\033[0m',)
         finder_output = response.choices[0].message.content.strip()
         print("🧠 Finder Output:", finder_output)
 
@@ -108,11 +107,13 @@ class ToolAgent:
         print(f"✅ Tool Selected: {tool_name} — {description}")
 
         # TOOL EXECUTOR
-        filtered_schema = self.get_filtered_tool_schema(tool_name)
-        executor_prompt = await build_tool_prompt(filtered_schema)
+        # filtered_schema = self.get_filtered_tool_schema(tool_name)
+        executor_prompt = await build_tool_prompt(tool_name)
+        print('\033[92m=====build_tool_prompt=====\033[0m', executor_prompt)
         
         from prompt.toolPrompt import format_tools_for_finder, format_mcp_tools
         all_local_tools = format_tools_for_finder(self.tools_schema)
+        # print('\033[92m=====all_local_tools=====\033[0m',all_local_tools)
         mcp_tools_info = await format_mcp_tools()
         all_tools_info = f"\n\n## ALL AVAILABLE TOOLS:\n{all_local_tools}{mcp_tools_info}"
 

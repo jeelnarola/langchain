@@ -20,6 +20,12 @@
       "env": {
         "GOOGLE_API_KEY": "YOUR_GOOGLE_API_KEY_HERE"
       }
+    },
+    "mcp-project": {
+      "command": "D:\\mcptool\\mcp-project\\.venv\\Scripts\\python.exe",
+      "args": [
+        "D:\\mcptool\\mcp-project\\main.py"
+      ]
     }
   }
 }

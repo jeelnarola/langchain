@@ -38,29 +38,6 @@ tools_schema = [
     {
         "type": "tools",
         "tools": {
-            "name": "product_insert_tool",
-            "description": "Insert a new product into the system with name, price, and optional category",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Product name"},
-                    "price": {"type": "number", "description": "Product price"},
-                    "category": {
-                        "type": "string",
-                        "description": "Optional product category",
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Optional product description",
-                    },
-                },
-                "required": ["name", "price"],
-            },
-        },
-    },
-    {
-        "type": "tools",
-        "tools": {
             "name": "send_email_tool",
             "description": "Send an email using SMTP or save it to the database without sending.",
             "parameters": {
