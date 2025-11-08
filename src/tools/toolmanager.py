@@ -111,30 +111,30 @@ Instruction:
     return summary.choices[0].message.content.strip()
 
 
-def product_insert_tool(name: str, price: float, description: str, category: str = "general",**kwargs) -> dict:
-    """Insert a new product into the system."""
-    # Example: insert into DB (here we just mock it)
-    print("----------- PRODUCT TOOL CALLING -------------")
+# def product_insert_tool(name: str, price: float, description: str, category: str = "general",**kwargs) -> dict:
+#     """Insert a new product into the system."""
+#     # Example: insert into DB (here we just mock it)
+#     print("----------- PRODUCT TOOL CALLING -------------")
 
-    product = {
-        "name": name,
-        "price": price,
-        "category": category,
-        "description": description,
-        "created_at": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-    print("User query (context):", kwargs.get("user_query"))
+#     product = {
+#         "name": name,
+#         "price": price,
+#         "category": category,
+#         "description": description,
+#         "created_at": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+#     }
+#     print("User query (context):", kwargs.get("user_query"))
 
-    # ✅ Insert into DB
-    save_product_db(product)
-    print("----------- PRODUCT TOOL -------------")
+#     # ✅ Insert into DB
+#     save_product_db(product)
+#     print("----------- PRODUCT TOOL -------------")
 
-    print("🛒 Product Inserted:", product)
-    return {
-        "status": "success",
-        "message": "Product inserted successfully",
-        "product": product,
-    }
+#     print("🛒 Product Inserted:", product)
+#     return {
+#         "status": "success",
+#         "message": "Product inserted successfully",
+#         "product": product,
+#     }
 
 
 
@@ -167,65 +167,6 @@ def send_email_tool(to_email: str, subject: str, body: str, mode: str = "send"):
     except Exception as e:
         print("[ERROR] Error in send_email_tool:", e)
         return {"status": "error", "message": str(e)}
-
-
-
-# async def handle_tool_call(tool_call):
-#     """Executes a tool call and returns structured output."""
-#     if isinstance(tool_call, dict):
-#         tool_name = tool_call["function"]["name"]
-#         tool_args_raw = tool_call["function"]["arguments"]
-#     else:
-#         tool_name = tool_call.function.name
-#         tool_args_raw = tool_call.function.arguments
-#     if isinstance(tool_args_raw, str):
-#         try:
-#             tool_args = json.loads(tool_args_raw) if tool_args_raw else {}
-#         except json.JSONDecodeError:
-#             tool_args = {}
-#     elif isinstance(tool_args_raw, dict):
-#         tool_args = tool_args_raw
-#     else:
-#         tool_args = {}
-
-#     print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
-
-#     tool_fn = {
-#         "pdf_tool": pdf_tool,
-#         "weather_tool": weather_tool,
-#         "product_insert_tool": product_insert_tool,
-#         "send_email_tool": send_email_tool,
-#     }.get(tool_name)
-
-#     if not tool_fn:
-#         return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
-
-#     try:
-#         if inspect.iscoroutinefunction(tool_fn):
-#             tool_output = await tool_fn(**tool_args)
-#         else:
-#             tool_output = tool_fn(**tool_args)
-
-#         if isinstance(tool_output, dict):
-#             tool_message = tool_output.get("message", json.dumps(tool_output))
-#         else:
-#             tool_message = str(tool_output)
-
-#         return {
-#             "status": "success",
-#             "tool": tool_name,
-#             "result": tool_output,
-#             "message": f"<final>{tool_message}</final>"
-#         }
-
-#     except Exception as e:
-#         return {
-#             "status": "error",
-#             "tool": tool_name,
-#             "result": None,
-#             "message": f"<final>Tool execution failed: {str(e)}</final>"
-#         }
-    
 
 
 #     import xml.etree.ElementTree as ET
@@ -275,8 +216,7 @@ async def handle_tool_call(tool_call, db=None, context=None):
     tool_fn = {
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
-        "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool
+        "send_email_tool": send_email_tool
     }.get(tool_name)
 
     if not tool_fn:
@@ -356,20 +296,4 @@ async def get_all_mcp_tools():
         print(f"Error getting MCP tools: {e}")
         return {}
 
-async def execute_tools_loop(client, messages, tools, model="gpt-4o-mini"):
-    """Execute tool calls in a loop until no more tools are needed"""
-    response = client.chat.completions.create(model=model, messages=messages, tools=tools)
-    response_message = response.choices[0].message
-    
-    while response_message.tool_calls:
-        messages.append(response_message)
-        
-        for tool_call in response_message.tool_calls:
-            result = await handle_tool_call(tool_call)
-            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result["message"]})
-        
-        response = client.chat.completions.create(model=model, messages=messages, tools=tools)
-        response_message = response.choices[0].message
-    
-    return response_message.content
 

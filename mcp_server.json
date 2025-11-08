@@ -32,6 +32,12 @@
         "GOOGLE_API_KEY": "AIzaSyDoknkaHRtsCn1OtU7vZfVzieoJDMEGcs8"
       },
       "is_active": true
+    },
+    "database-mcp": {
+      "command": "python",
+      "args": [
+        "D:\\database-mcp\\main.py"
+      ]
     }
   }
 }

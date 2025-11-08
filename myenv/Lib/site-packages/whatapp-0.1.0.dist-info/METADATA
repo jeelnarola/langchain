@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: whatapp
+Version: 0.1.0
+Summary: Package to structure and analyse whatsapp text data
+Author: Jon Fuller
+Author-email: jonfuller0207@gmail.com
+Requires-Python: >=3.9,<4.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Dist: black (>=24.4.2,<25.0.0)
+Requires-Dist: ipykernel (>=6.29.4,<7.0.0)
+Requires-Dist: pandas (>=2.2.2,<3.0.0)
+Description-Content-Type: text/markdown
+
+
