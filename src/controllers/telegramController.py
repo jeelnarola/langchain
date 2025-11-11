@@ -2,7 +2,7 @@ import os
 from fastapi import Request, HTTPException
 from dotenv import load_dotenv
 from openai import OpenAI
-from utils.toolSchema import tools_schema
+from utils.toolSchema import get_tools_schema
 from utils.toolAgent import ToolAgent
 from config.database import get_db
 from controllers import askControllers
@@ -76,7 +76,8 @@ async def handle_telegram_webhook(request: Request):
         # 6️⃣ Get conversation history
         conversation_history = askControllers.sessions[chat_id].get("messages", [])
 
-        # 7️⃣ Initialize AI Agent
+        # 7️⃣ Get tools schema and initialize AI Agent
+        tools_schema = await get_tools_schema()
         agent = ToolAgent(
             session_id=chat_id,
             api_client=client,

@@ -19,6 +19,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import OpenAIEmbeddings
 
 from sqlalchemy.orm import Session
+from tools.toolmanager import refresh_vector_database
 
 load_dotenv()  # Load environment variables
 
@@ -186,6 +187,8 @@ async def upload_pdf(files: list[UploadFile], db: Session):
         except Exception as e:
             results.append({"filename": file.filename, "error": str(e)})
 
+    # ✅ Refresh vector cache after upload
+    refresh_vector_database()
     return {"results": results}
 
 
@@ -227,6 +230,9 @@ async def delete_document_by_id(doc_id: int, db: Session):
 
         # Optionally clear in-memory store
         global_vectorstore = None
+        
+        # ✅ Refresh vector cache after deletion
+        refresh_vector_database()
 
         return {"message": f"Deleted document ID {doc_id} and associated vector files."}
 

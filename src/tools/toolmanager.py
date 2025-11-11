@@ -66,6 +66,9 @@ def weather_tool(city: str) -> dict:
     print("User query (city):", response)
     return response
 
+# Cache for vector stores to avoid reloading
+_vector_store_cache = {}
+
 def pdf_tool(query: str, db=None) -> str:
     if not db:
         from config.database import get_db
@@ -77,10 +80,13 @@ def pdf_tool(query: str, db=None) -> str:
 
     retriever_docs = []
     for vector_path in vector_paths:
-        store = Chroma(
-            persist_directory=vector_path,
-            embedding_function=get_embeddings(),
-        )
+        # Use cached store if available
+        if vector_path not in _vector_store_cache:
+            _vector_store_cache[vector_path] = Chroma(
+                persist_directory=vector_path,
+                embedding_function=get_embeddings(),
+            )
+        store = _vector_store_cache[vector_path]
         docs = store.similarity_search(query, k=3)
         retriever_docs.extend(docs)
 
@@ -109,6 +115,11 @@ Instruction:
     )
 
     return summary.choices[0].message.content.strip()
+
+def clear_vector_cache():
+    """Clear the vector store cache to force reload on next query"""
+    global _vector_store_cache
+    _vector_store_cache = {}
 
 
 # def product_insert_tool(name: str, price: float, description: str, category: str = "general",**kwargs) -> dict:
@@ -295,5 +306,10 @@ async def get_all_mcp_tools():
     except Exception as e:
         print(f"Error getting MCP tools: {e}")
         return {}
+
+def refresh_vector_database():
+    """Call this when PDFs are uploaded/deleted to refresh the cache"""
+    clear_vector_cache()
+    print("✅ Vector database cache cleared")
 
 

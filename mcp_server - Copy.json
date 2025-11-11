@@ -1,0 +1,44 @@
+{
+  "mcpServers": {
+    "telegram-mcp": {
+      "command": "C:\\Users\\HP\\.local\\bin\\uv",
+      "args": [
+        "--directory",
+        "D:\\mcp_server\\telegram-mcp",
+        "run",
+        "main.py"
+      ],
+      "is_active": true
+    },
+    "whatsapp": {
+      "command": "C:\\Users\\HP\\.local\\bin\\uv",
+      "args": [
+        "--directory",
+        "D:\\whatsapp-mcp\\whatsapp-mcp-server",
+        "run",
+        "main.py"
+      ]
+    },
+    "youtube": {
+      "command": "C:\\Users\\HP\\.local\\bin\\uv",
+      "args": [
+        "--directory",
+        "D:\\Youtube-MCP",
+        "run",
+        "python",
+        "server.py"
+      ],
+      "env": {
+        "GOOGLE_API_KEY": "AIzaSyDoknkaHRtsCn1OtU7vZfVzieoJDMEGcs8"
+      },
+      "is_active": true
+    },
+    "database-mcp": {
+      "command": "python",
+      "args": [
+        "D:\\database-mcp\\main.py"
+      ]
+    }
+  }
+}
+

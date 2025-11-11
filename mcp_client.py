@@ -81,7 +81,7 @@ class MCPClient:
         
         result = await session.call_tool(tool_name, arguments)
         return result.content
-
+    
     async def format_info(self):
         """Get formatted tool names and descriptions from all MCP servers"""
         if not self._initialized:

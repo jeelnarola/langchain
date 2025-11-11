@@ -2,7 +2,7 @@ from validations.schemas import MessageIn
 import os
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
-from utils.toolSchema import tools_schema
+from utils.toolSchema import get_tools_schema
 import datetime
 from typing import Dict, Any
 from openai import OpenAI
@@ -180,6 +180,7 @@ async def ask_in_session(session_id: str, data: "MessageIn",db: Session) -> str:
         updated_sessions(session_id, "user", data.question)
         store_message_db(session_id, "user", data.question)
         
+        tools_schema = await get_tools_schema()
         agent = ToolAgent(session_id, client, tools_schema, db)
         task = data.question
         conversation_history = sessions.get(session_id, {}).get("messages", [])
