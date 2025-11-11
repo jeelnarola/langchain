@@ -1,7 +1,7 @@
 tools_schema = [
     {
-        "type": "tools",
-        "tools": {
+        "type": "function",
+        "function": {
             "name": "pdf_tool",
             "description": (
                 "- Always call pdf_tool with the user's question; never answer directly.\n"
@@ -22,8 +22,8 @@ tools_schema = [
         },
     },
     {
-        "type": "tools",
-        "tools": {
+        "type": "function",
+        "function": {
             "name": "weather_tool",
             "description": "Get current weather for a given city",
             "parameters": {
@@ -36,8 +36,8 @@ tools_schema = [
         },
     },
     {
-        "type": "tools",
-        "tools": {
+        "type": "function",
+        "function": {
             "name": "send_email_tool",
             "description": "Send an email using SMTP or save it to the database without sending.",
             "parameters": {

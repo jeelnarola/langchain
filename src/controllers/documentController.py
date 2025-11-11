@@ -219,13 +219,12 @@ async def delete_document_by_id(doc_id: int, db: Session):
         if not deleted:
             return {"message": f"Failed to delete document ID {doc_id}"}
 
-        # Delete FAISS vector files from disk
-        for ext in [".faiss", ".pkl"]:
-            path = vector_path + ext
-            if os.path.exists(path):
-                os.remove(path)
+        # Delete Chroma vector directory
+        import shutil
+        if os.path.exists(vector_path):
+            shutil.rmtree(vector_path)
 
-        # Optionally clear in-memory store
+        # Clear global vectorstore to force reload
         global_vectorstore = None
 
         return {"message": f"Deleted document ID {doc_id} and associated vector files."}
