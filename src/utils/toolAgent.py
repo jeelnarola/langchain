@@ -1,6 +1,7 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from tools.toolmanager import handle_tool_call, parse_use_mcp_tool
 from prompt.toolPrompt import build_tool_prompt
+from dotenv import load_dotenv
 from utils.createSession import (
     updated_sessions,
     store_message_db,
@@ -8,20 +9,109 @@ from utils.createSession import (
     retrieve_memory_db,
     save_memory_db,
 )
-import re, json
+from mcp_client import mcp_client  
+import re
+import json
+import os
+from google import genai
+from google.genai import types
 
-# Assume memory helpers are available
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Keep a global client fallback in case ToolAgent wasn't passed an api_client
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+
+# ==========================================================
+# 🧹 Schema Cleaner (Unchanged)
+# ==========================================================
+def clean_schema(schema):
+    """Recursively sanitize JSON schema for Gemini tool specs."""
+    if isinstance(schema, dict):
+        for bad_key in [
+            "additional_properties",
+            "additionalProperties",
+            "examples",
+            "nullable",
+            "default",
+            "title",
+            "description",
+        ]:
+            schema.pop(bad_key, None)
+
+        if "properties" in schema:
+            props = schema["properties"]
+            if isinstance(props, dict):
+                for key, val in list(props.items()):
+                    if not isinstance(val, dict):
+                        props[key] = {"type": "string", "description": str(val)}
+                    else:
+                        props[key] = clean_schema(val)
+            else:
+                schema["properties"] = {}
+
+        if "items" in schema:
+            schema["items"] = clean_schema(schema["items"])
+
+        if "required" in schema:
+            valid_props = set(schema.get("properties", {}).keys())
+            valid_required = [r for r in schema["required"] if r in valid_props]
+            if valid_required:
+                schema["required"] = valid_required
+            else:
+                schema.pop("required", None)
+
+        if schema.get("type") not in ["object", "array", "string", "number", "boolean"]:
+            schema["type"] = "object"
+            schema.setdefault("properties", {})
+
+        schema = {k: v for k, v in schema.items() if v is not None}
+
+    elif isinstance(schema, list):
+        return [clean_schema(i) for i in schema]
+
+    return schema
+
+
+# ==========================================================
+# 🔧 Convert OpenAI-style → Gemini tools
+# ==========================================================
+def convert_openai_tools_to_gemini(tools_schema):
+    gemini_tool = types.Tool(function_declarations=[])
+
+    for tool in tools_schema:
+        fn = tool.get("function", tool)
+        if not isinstance(fn, dict) or "name" not in fn:
+            print(f"⚠️ Skipping malformed tool schema: {tool}")
+            continue
+
+        clean_params = clean_schema(
+            fn.get("parameters", {"type": "object", "properties": {}})
+        )
+        gemini_tool.function_declarations.append(
+            types.FunctionDeclaration(
+                name=fn["name"],
+                description=fn.get("description", ""),
+                parameters=clean_params,
+            )
+        )
+    print('\033[92m=====gemini_tool=====\033[0m',gemini_tool)
+    return [gemini_tool]
+
 
 class ToolAgent:
-    def __init__(self, session_id: str, api_client, tools_schema, db):
+    def __init__(self, session_id: str, api_client: Optional[Any], tools_schema: Optional[Dict] = None, db: Optional[Any] = None):
         self.session_id = session_id
-        self.api_client = api_client
-        self.tools_schema = tools_schema
+        self.api_client = api_client or client
+        self.tools_schema = tools_schema or {}
         self.message_history: List[Dict] = []
         self.tool_call_error_attempt = 0
         self.result = ""
+        self.context = []
         self.db = db
+        self.system_prompt = ""
         self.tools_executed = set()  # Track executed tools
+        self.mode = "action"
 
     # -------------------- History Logging --------------------
     def add_to_history(
@@ -42,7 +132,7 @@ class ToolAgent:
 
     # -------------------- Start Task --------------------
     async def start_task(
-        self, task: str, conversation_history: Optional[List], mode: Optional[str] = "action"
+        self, task: str, conversation_history: Optional[List] = None, mode: Optional[str] = "action"
     ) -> str:
         self.result = ""
         self.message_history = []
@@ -65,30 +155,62 @@ class ToolAgent:
         # -------------------- Prepare Context --------------------
         last_messages = self.message_history[-8:]  # last 8 messages
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in last_messages])
-        memory_text = retrieve_memory_db(self.db,k=3)  # last 3 saved memory items
+        memory_text = retrieve_memory_db(self.db, k=3) if self.db is not None else ""
 
-        system_context = f"User memory:\n{memory_text}\nRecent history:\n{history_text}"
+        self.system_prompt = await build_tool_prompt(last_messages, history_text, memory_text)
 
-        if not any(msg["role"] == "system" for msg in self.message_history):
-            system_prompt = await build_tool_prompt()
-            self.message_history.insert(
-                0,
-                {"role": "system", "content": system_prompt + "\n\n" + system_context},
-            )
+        # -------------------- Prepare Tools (Once) --------------------
+        merged_tools = list(self.tools_schema)
+        try:
+            from mcp_client import mcp_client
+            mcp_tool_data = await mcp_client.get_all_tools()
+            for server_name, tools in mcp_tool_data.items():
+                for tool in tools:
+                    schema = tool.get("inputSchema", {"type": "object", "properties": {}})
+                    schema = clean_schema(schema)
+                    desc = tool.get('description', 'No description provided.')
+                    # Truncate long descriptions to save tokens
+                    if len(desc) > 100:
+                        desc = desc[:97] + "..."
+                    merged_tools.append({
+                        "function": {
+                            "name": tool["name"],
+                            "description": f"[{server_name}] {desc}",
+                            "parameters": schema,
+                        }
+                    })
+            print(f"🧩 Loaded {len(merged_tools)} total tools (local + MCP).")
+        except Exception as e:
+            print(f"⚠️ Could not load MCP tools: {e}")
+
+        # Deduplicate by tool name
+        seen_names = set()
+        unique_tools = []
+        for tool in merged_tools:
+            fn = tool.get("function", tool)
+            name = fn.get("name")
+            if name and name not in seen_names:
+                seen_names.add(name)
+                unique_tools.append(tool)
+        
+        gemini_tools = convert_openai_tools_to_gemini(unique_tools)
 
         # -------------------- Task Loop (Max 5 iterations) --------------------
         max_iterations = 5
         iteration = 0
+        conversation_contents = [types.Content(role="user", parts=[types.Part(text=task_content)])]
+        
         while iteration < max_iterations:
             iteration += 1
             print(f'\033[93m=====Iteration {iteration}/{max_iterations}=====\033[0m')
-            did_end_loop = await self.make_api_requests()
+            did_end_loop = await self.make_api_requests(conversation_contents, gemini_tools)
             ended, result = did_end_loop
             if ended:
-                print('\033[92m=====result=====\033[0m', result)
+                if result:
+                    print('\033[92m=====result=====\033[0m', result)
                 break
-        
-        if iteration >= max_iterations:
+
+        if iteration >= max_iterations and not self.result:
             self.result = "Task completed after maximum iterations."
             print('\033[91m=====Max iterations reached=====\033[0m')
 
@@ -96,72 +218,73 @@ class ToolAgent:
         return self.result
 
     # -------------------- API Requests / Tool Execution --------------------
-    async def make_api_requests(self) -> Tuple[bool, Optional[str]]:
+    async def make_api_requests(self, conversation_contents: List, gemini_tools: List) -> Tuple[bool, Optional[str]]:
+        """
+        Returns (ended: bool, result: Optional[str]).
+        ended==True means this iteration produced a final result (or error string).
+        If tools were invoked and executed, returns (False, None) so caller may continue the loop.
+        """
+
         try:
-            # Convert tools to OpenAI format and build tool metadata map
-            openai_tools = []
-            tool_metadata = {}  # Map tool_name -> {server_name, original_tool_name}
-            
-            if self.tools_schema:
-                for item in self.tools_schema:
-                    if isinstance(item, dict) and "tools" in item:
-                        tool_def = item["tools"]
-                        tool_name = tool_def["name"]
-                        
-                        openai_tools.append({
-                            "type": "function",
-                            "function": {
-                                "name": tool_name,
-                                "description": tool_def.get("description", ""),
-                                "parameters": tool_def.get("parameters", {})
-                            }
-                        })
-                        
-                        # Store metadata for MCP tools
-                        if "server_name" in item:
-                            tool_metadata[tool_name] = {
-                                "server_name": item["server_name"],
-                                "original_tool_name": item.get("original_tool_name", tool_name)
-                            }
-
-            # -------------------- Call LLM --------------------
-            response = self.api_client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=self.message_history,
-                tools=openai_tools if openai_tools else None,
-                max_tokens=1000,
-                temperature=0.2,
+            # Build config
+            config = types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=900,
+                system_instruction=self.system_prompt,
+                tools=gemini_tools
             )
-            print('\033[92m=====response=====\033[0m', response)
+            print('\033[92m=====tools=====\033[0m',gemini_tools)
+            print('\033[92m=====config=====\033[0m', config)
 
-            message = response.choices[0].message
-            assistant_reply = message.content or ""
-            tool_calls = getattr(message, "tool_calls", None)
+            api_client = self.api_client or client
+
+            response = api_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=conversation_contents,
+                config=config
+            )
+
+            print('\033[92m=====raw_response=====\033[0m', response)
+
+            # Parse Gemini response
+            assistant_reply = ""
+            function_calls = []
+            candidate = None
+            
+            if response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                if candidate.content and candidate.content.parts:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            assistant_reply += part.text
+                        elif hasattr(part, 'function_call') and part.function_call:
+                            function_calls.append(part.function_call)
+            print('\033[92m=====candidate=====\033[0m',candidate)
             
             print('\033[92m=====assistant_reply=====\033[0m', assistant_reply)
-            print('\033[92m=====tool_calls=====\033[0m', tool_calls)
+            print('\033[92m=====function_calls=====\033[0m', function_calls)
+            
+            # Check if response is empty
+            if not assistant_reply and not function_calls:
+                print('\033[91m=====Empty response from Gemini=====\033[0m')
+                if candidate and hasattr(candidate, 'finish_reason'):
+                    print(f'\033[91m=====Finish reason: {candidate.finish_reason}=====\033[0m')
+                self.result = "I apologize, but I couldn't generate a response. Please try again."
+                return True, self.result
 
-            # Handle OpenAI function calls
-            if tool_calls:
-                # Check if tools were already executed (prevent duplicates)
-                tool_signature = "|".join([f"{tc.function.name}:{tc.function.arguments}" for tc in tool_calls])
-                if tool_signature in self.tools_executed:
-                    # Tools already executed, request final response without tools
-                    self.add_to_history("assistant", "Tools already executed. Provide final summary without calling tools.")
-                    return False, None
+            # Handle Gemini function calls
+            if function_calls:
+                self.add_to_history("assistant", assistant_reply)
                 
-                self.tools_executed.add(tool_signature)
+                # Add model response to conversation
+                conversation_contents.append(candidate.content)
                 
-                # Add assistant message with tool calls
-                self.add_to_history("assistant", assistant_reply, tool_calls=tool_calls)
-                
-                # Execute each tool call
-                for tool_call in tool_calls:
-                    function_name = tool_call.function.name
-                    function_args = json.loads(tool_call.function.arguments)
-                    tool_call_id = tool_call.id
+                # Execute tools and add results
+                tool_response_parts = []
+                for fc in function_calls:
+                    function_name = fc.name
+                    function_args = dict(fc.args)
                     
-                    # Create tool call structure with MCP metadata
                     tool_call_dict = {
                         "function": {
                             "name": function_name,
@@ -169,27 +292,30 @@ class ToolAgent:
                         }
                     }
                     
-                    # Add MCP server info if available
-                    if function_name in tool_metadata:
-                        tool_call_dict["server_name"] = tool_metadata[function_name]["server_name"]
-                        tool_call_dict["function"]["name"] = tool_metadata[function_name]["original_tool_name"]
-                    
                     print('\033[92m=====executing_tool=====\033[0m', function_name, function_args)
                     result = await handle_tool_call(tool_call_dict, self.db)
                     print('\033[92m=====tool_result=====\033[0m', result)
                     
                     tool_result_content = result.get("message", str(result))
-                    self.add_to_history("tool", tool_result_content, tool_call_id=tool_call_id)
+                    self.add_to_history("function", tool_result_content)
+                    
+                    tool_response_parts.append(
+                        types.Part(function_response=types.FunctionResponse(
+                            name=function_name,
+                            response={"result": tool_result_content}
+                        ))
+                    )
                 
-                # Continue conversation after tool execution
+                # Add tool results to conversation
+                conversation_contents.append(types.Content(role="user", parts=tool_response_parts))
                 return False, None
 
-            # If no tool calls, conversation is complete
+            # If no function calls, conversation is complete
             if assistant_reply:
                 self.result = assistant_reply
                 return True, assistant_reply
             
-            return False, None
+            return True, None
 
         except Exception as e:
             print(f"❌ Exception during make_api_requests(): {e}")

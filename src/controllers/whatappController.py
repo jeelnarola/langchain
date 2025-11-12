@@ -11,9 +11,10 @@ from utils.createSession import store_message_db
 from whatsapp import send_message  # your existing send_message function
 
 load_dotenv()
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# client = OpenAI(api_key=OPENAI_API_KEY)
+from google import genai
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 async def handle_whatsapp_webhook(request: Request):

@@ -205,16 +205,37 @@ async def handle_tool_call(tool_call, db=None, context=None):
 
     print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
     
-    # Check if this is an MCP tool call
-    if server_name:
+    # Define local tools
+    local_tools = {
+        "weather_tool": weather_tool,
+        "pdf_tool": pdf_tool,
+        "send_email_tool": send_email_tool
+    }
+    
+    # Check if this is a local tool
+    tool_fn = local_tools.get(tool_name)
+    
+    if not tool_fn:
+        # Not a local tool, try MCP
         try:
-            result = await call_mcp_tool(server_name, tool_name, tool_args)
-            return {
-                "status": "success",
-                "tool": tool_name,
-                "result": result,
-                "message": result or "MCP tool executed successfully"
-            }
+            # Find which server has this tool
+            if not server_name:
+                all_tools = await mcp_client.get_all_tools()
+                for srv_name, tools in all_tools.items():
+                    if any(t["name"] == tool_name for t in tools):
+                        server_name = srv_name
+                        break
+            
+            if server_name:
+                result = await call_mcp_tool(server_name, tool_name, tool_args)
+                return {
+                    "status": "success",
+                    "tool": tool_name,
+                    "result": result,
+                    "message": str(result) if result else "MCP tool executed successfully"
+                }
+            else:
+                return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
         except Exception as e:
             return {
                 "status": "error",
@@ -222,17 +243,8 @@ async def handle_tool_call(tool_call, db=None, context=None):
                 "result": None,
                 "message": f"MCP tool execution failed: {str(e)}"
             }
-    
+
     # Handle local tools
-    tool_fn = {
-        "weather_tool": weather_tool,
-        "pdf_tool": pdf_tool,
-        "send_email_tool": send_email_tool
-    }.get(tool_name)
-
-    if not tool_fn:
-        return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
-
     try:
         # Add db parameter for tools that need it
         if tool_name == "pdf_tool" and db:

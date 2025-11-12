@@ -2,7 +2,7 @@ import os
 from fastapi import Request, HTTPException
 from dotenv import load_dotenv
 from openai import OpenAI
-from utils.toolSchema import get_tools_schema
+from utils.toolSchema import tools_schema
 from utils.toolAgent import ToolAgent
 from config.database import get_db
 from controllers import askControllers
@@ -11,8 +11,10 @@ from utils.createSession import store_message_db
 
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# client = OpenAI(api_key=OPENAI_API_KEY)
+from google import genai
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 async def handle_telegram_webhook(request: Request):
@@ -77,7 +79,6 @@ async def handle_telegram_webhook(request: Request):
         conversation_history = askControllers.sessions[chat_id].get("messages", [])
 
         # 7️⃣ Get tools schema and initialize AI Agent
-        tools_schema = await get_tools_schema()
         agent = ToolAgent(
             session_id=chat_id,
             api_client=client,
