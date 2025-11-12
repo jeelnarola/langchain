@@ -1,12 +1,11 @@
 from datetime import datetime
 
-async def build_tool_prompt():
+
+async def build_tool_prompt(last_message, history_text, memory_text):
     """
     Returns a system prompt string for the multi-tool MCP assistant.
     Improvements:
     - Explicitly enforces sequential multi-tool calls for multi-task queries.
-    - Ensures one <thinking> + <use_mcp_tool> per subtask.
-    - Final <attempt_completion> is emitted only after *all* tasks are completed.
     """
 
     current_date = datetime.now().strftime("%Y-%m-%d")
@@ -32,11 +31,28 @@ Today's date: {current_date}  Current time: {current_time}
 
 ---
 
+---
+
+# USER CONTEXT (embed safely)
+## Last message (most recent user input)
+{last_message}
+
+## Conversation history (summary or recent exchanges)
+{history_text}
+
+## User memory / personalization
+{memory_text}
+
+---
+
 # OBJECTIVE
 1. Parse the user message and identify all tasks
 2. Call appropriate functions for each task
 3. Use actual data from function results
 4. Provide comprehensive response covering all completed tasks
+
+**Memory** → for questions about the user or known stored info (e.g. name, contact, preferences).
+**Tools** → for actions or external data (e.g. weather, PDF content, emails).
 
 # CORE RULES
 - Execute ALL tasks mentioned in user request
@@ -60,15 +76,15 @@ Today's date: {current_date}  Current time: {current_time}
 # BEHAVIORAL GOALS
 - Treat every user message as potentially multi-step.
 - Be explicit and deterministic in tool selection.
-- Always emit <thinking> before each <use_mcp_tool>.
-- Only one <attempt_completion> at the very end.
 - Never omit required tags.
 
+
+# Summary of Key Rules
+- Never call **pdf_tool** automatically for personal or unrelated queries.
+- Always use **memory** if personal info is already available.
+
 # NOTES
-- <thinking> = reasoning only (no tool output)
-- <use_mcp_tool> = single tool execution
-- <attempt_completion> = final composed answer
 - Sequentially handle all subtasks before finalization.
 """
 
-    return prompt
+    return prompt.strip()

@@ -69,48 +69,71 @@ def weather_tool(city: str) -> dict:
 
 
 def pdf_tool(query: str, db=None) -> str:
+    """
+    Search across all stored PDF vector databases and return a direct,
+    non-LLM answer using simple context matching.
+    """
+    print("\n\033[94m===== 🧩 ENTERING pdf_tool =====\033[0m")
+    print(f"🔍 Query: {query}")
+
+    # --- Step 1: Ensure DB Session ---
     if not db:
         from config.database import get_db
         db = next(get_db())
-    
-    vector_paths = get_all_vector_paths(db)
+        print("ℹ️ Using new DB session from get_db()")
+    else:
+        print("ℹ️ Using passed DB session object")
+
+    # --- Step 2: Load all stored vector DB paths ---
+    try:
+        vector_paths = get_all_vector_paths(db)
+        print(f"📂 Found {len(vector_paths)} vector store(s): {vector_paths}")
+    except Exception as e:
+        print(f"❌ Error fetching vector paths: {e}")
+        return "Failed to retrieve vector store paths."
+
     if not vector_paths:
+        print("⚠️ No vector stores found.")
         return "No PDF documents available."
 
+    # --- Step 3: Perform similarity search ---
     retriever_docs = []
     for vector_path in vector_paths:
-        store = Chroma(
-            persist_directory=vector_path,
-            embedding_function=get_embeddings(),
-        )
-        docs = store.similarity_search(query, k=3)
-        retriever_docs.extend(docs)
+        print(f"🔎 Searching vector store: {vector_path}")
+        try:
+            store = Chroma(
+                persist_directory=vector_path,
+                embedding_function=get_embeddings(),
+            )
+            docs = store.similarity_search(query, k=3)
+            print(f"✅ Found {len(docs)} matching docs in this store.")
+            for d in docs:
+                print(f"📄 Doc snippet: {d.page_content[:150]}...\n")
+            retriever_docs.extend(docs)
+        except Exception as e:
+            print(f"❌ Error searching store {vector_path}: {e}")
 
     if not retriever_docs:
+        print("⚠️ No relevant information found in any PDF.")
         return "No relevant information found in PDF."
 
-    context = "\n\n".join([doc.page_content for doc in retriever_docs[:5]])
-    
-    extraction_prompt = f"""
-You are an assistant that extracts concise, direct answers from PDF context.
+    # --- Step 4: Prepare context and find best snippet ---
+    context = [doc.page_content for doc in retriever_docs]
+    print(f"🧠 Combined context size: {len(context)} passages")
 
-PDF Context:
-{context}
-
-User Question:
-{query}
-
-Instruction:
-- Provide the answer as plain text.
-- If no answer is clear, respond "I don't know."
-"""
-    summary = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": extraction_prompt}],
-        stream=False,
+    # Simple keyword scoring (optional heuristic)
+    query_terms = set(query.lower().split())
+    best_match = max(
+        context,
+        key=lambda text: sum(1 for word in query_terms if word in text.lower()),
     )
 
-    return summary.choices[0].message.content.strip()
+    # --- Step 5: Return best snippet as the direct answer ---
+    cleaned_answer = best_match.strip().replace("\n", " ").replace("  ", " ")
+    print(f"✅ Direct answer (truncated to 300 chars): {cleaned_answer[:300]}...")
+    print("\033[92m===== ✅ EXITING pdf_tool SUCCESSFULLY =====\033[0m\n")
+
+    return cleaned_answer
 
 
 def product_insert_tool(
@@ -161,7 +184,7 @@ def send_email_tool(to_email: str = None, subject: str = "", body: str = "", mod
 
 
 async def handle_tool_call(tool_call, db=None, context=None):
-    """Executes a tool call and returns structured output."""
+    """Executes a tool call and returns structured output safely."""
     if isinstance(tool_call, dict):
         tool_name = tool_call["function"]["name"]
         tool_args_raw = tool_call["function"]["arguments"]
@@ -171,6 +194,7 @@ async def handle_tool_call(tool_call, db=None, context=None):
         tool_args_raw = tool_call.function.arguments
         server_name = None
 
+    # Normalize tool arguments
     if isinstance(tool_args_raw, str):
         try:
             tool_args = json.loads(tool_args_raw) if tool_args_raw else {}
@@ -182,71 +206,76 @@ async def handle_tool_call(tool_call, db=None, context=None):
         tool_args = {}
 
     print(f"🔧 Running tool: {tool_name} with args: {tool_args}")
-    
-    # Check if this is an MCP tool call
+
+    # --- MCP tools (external) ---
     if server_name:
         try:
-            # Inject chat_id for telegram tools
             if server_name == "telegram-mcp" and context and "chat_id" in context:
                 tool_args["chat_id"] = context["chat_id"]
-                # Remove null chat_id if present
-                if tool_args.get("chat_id") is None:
-                    tool_args["chat_id"] = context["chat_id"]
-            
             result = await call_mcp_tool(server_name, tool_name, tool_args)
             return {
                 "status": "success",
                 "tool": tool_name,
                 "result": result,
-                "message": result or "MCP tool executed successfully"
+                "message": str(result) or "MCP tool executed successfully",
             }
         except Exception as e:
             return {
                 "status": "error",
                 "tool": tool_name,
-                "result": None,
-                "message": f"MCP tool execution failed: {str(e)}"
+                "message": f"MCP tool execution failed: {str(e)}",
             }
-    
-    # Handle local tools
-    tool_fn = {
+
+    # --- Local tools registry ---
+    local_tools = {
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
         "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool
-    }.get(tool_name)
+        "product_insert_tool": product_insert_tool,
+    }
 
+    tool_fn = local_tools.get(tool_name)
     if not tool_fn:
-        return {"status": "error", "tool": tool_name, "message": f"Unknown tool {tool_name}"}
+        return {
+            "status": "error",
+            "tool": tool_name,
+            "message": f"Unknown tool '{tool_name}'",
+        }
 
     try:
-        # Add db parameter for tools that need it
-        if tool_name == "pdf_tool" and db:
-            tool_args["db"] = db
-            
-        if inspect.iscoroutinefunction(tool_fn):
+        # 🧠 IMPORTANT FIX: Never insert `db` into tool_args
+        # Call tool manually with db when needed
+        if tool_name == "pdf_tool":
+            if inspect.iscoroutinefunction(tool_fn):
+                tool_output = await tool_fn(query=tool_args.get("query", ""), db=db)
+            else:
+                tool_output = tool_fn(query=tool_args.get("query", ""), db=db)
+        elif inspect.iscoroutinefunction(tool_fn):
             tool_output = await tool_fn(**tool_args)
         else:
             tool_output = tool_fn(**tool_args)
 
+        # Convert output safely for logs/LLM
         if isinstance(tool_output, dict):
-            tool_message = tool_output.get("message", json.dumps(tool_output))
+            tool_message = tool_output.get("message", json.dumps(tool_output, default=str))
         else:
             tool_message = str(tool_output)
-        print("Tool message:", tool_message)
+
+        print("✅ Tool result:", tool_message)
         return {
             "status": "success",
             "tool": tool_name,
             "result": tool_output,
-            "message": f"{tool_message}"
+            "message": tool_message,
         }
 
     except Exception as e:
+        print(f"❌ Tool execution failed: {e}")
         return {
             "status": "error",
             "tool": tool_name,
             "result": None,
-            "message": f"Tool execution failed: {str(e)}"
+            "message": f"Tool execution failed: {str(e)}",
         }
 
 # import xml.etree.ElementTree as ET
