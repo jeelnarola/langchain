@@ -1,7 +1,7 @@
 from datetime import datetime
 
 
-async def build_tool_prompt(last_message, history_text, memory_text):
+async def build_tool_prompt(history_text, memory_text):
     """
     Returns a system prompt string for the multi-tool MCP assistant.
     Improvements:
@@ -34,8 +34,6 @@ Today's date: {current_date}  Current time: {current_time}
 ---
 
 # USER CONTEXT (embed safely)
-## Last message (most recent user input)
-{last_message}
 
 ## Conversation history (summary or recent exchanges)
 {history_text}
