@@ -1,6 +1,6 @@
 from datetime import datetime
 
-async def build_tool_prompt(last_messages, history_text, memory_text):
+async def build_tool_prompt(memory_text):
     """
     Returns a system prompt string for the multi-tool MCP assistant.
     Improvements:

@@ -157,7 +157,7 @@ class ToolAgent:
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in last_messages])
         memory_text = retrieve_memory_db(self.db, k=3) if self.db is not None else ""
 
-        self.system_prompt = await build_tool_prompt(last_messages, history_text, memory_text)
+        self.system_prompt = await build_tool_prompt(memory_text)
 
         # -------------------- Prepare Tools (Once) --------------------
         merged_tools = list(self.tools_schema)
@@ -217,7 +217,7 @@ class ToolAgent:
         store_message_db(self.session_id, "assistant", self.result)
         return self.result
 
-    # -------------------- API Requests / Tool Execution --------------------
+    # # # -------------------- API Requests / Tool Execution --------------------
     async def make_api_requests(self, conversation_contents: List, gemini_tools: List) -> Tuple[bool, Optional[str]]:
         """
         Returns (ended: bool, result: Optional[str]).
@@ -249,28 +249,48 @@ class ToolAgent:
             # Parse Gemini response
             assistant_reply = ""
             function_calls = []
+
+            # Pick the finished candidate (or first as fallback)
+            candidates = response.candidates or []
             candidate = None
-            
-            if response.candidates and len(response.candidates) > 0:
-                candidate = response.candidates[0]
-                if candidate.content and candidate.content.parts:
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'text') and part.text:
-                            assistant_reply += part.text
-                        elif hasattr(part, 'function_call') and part.function_call:
-                            function_calls.append(part.function_call)
-            print('\033[92m=====candidate=====\033[0m',candidate)
-            
+
+            for cand in candidates:
+                if getattr(cand, "finish_reason", None) == "finish":
+                    candidate = cand
+                    break
+
+            # Fallback: use first candidate
+            if candidate is None and candidates:
+                candidate = candidates[0]
+
+            # If still none: retry
+            if candidate is None:
+                print("No candidates found — retry")
+                return False, None
+
+            # Parse candidate parts (same logic as before)
+            parts = getattr(candidate, "content", None)
+            parts = getattr(parts, "parts", None)
+
+            if parts:
+                for part in parts:
+                    if getattr(part, "text", None):
+                        assistant_reply += part.text
+                    elif getattr(part, "function_call", None):
+                        function_calls.append(part.function_call)
+
+            # Debug prints
+            print('\033[92m=====candidate=====\033[0m', candidate)
             print('\033[92m=====assistant_reply=====\033[0m', assistant_reply)
             print('\033[92m=====function_calls=====\033[0m', function_calls)
-            
-            # Check if response is empty
+
+            # Empty check
             if not assistant_reply and not function_calls:
                 print('\033[91m=====Empty response from Gemini=====\033[0m')
-                if candidate and hasattr(candidate, 'finish_reason'):
-                    print(f'\033[91m=====Finish reason: {candidate.finish_reason}=====\033[0m')
+                print(f'\033[91m=====Finish reason: {getattr(candidate, "finish_reason", None)}=====\033[0m')
                 self.result = "I apologize, but I couldn't generate a response. Please try again."
                 return True, self.result
+
 
             # Handle Gemini function calls
             if function_calls:
@@ -321,3 +341,4 @@ class ToolAgent:
             print(f"❌ Exception during make_api_requests(): {e}")
             self.result = f"An error occurred: {e}"
             return True, self.result
+        
