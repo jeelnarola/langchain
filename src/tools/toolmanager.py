@@ -33,6 +33,12 @@ def get_embeddings():
     return OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
 
 
+def clear_vector_cache():
+    """Clear the vector store cache to force reload on next query"""
+    global _vector_store_cache
+    _vector_store_cache = {}
+
+
 def weather_tool(city: str) -> dict:
     """Get the current weather for a given city."""
     geo_url = "https://geocoding-api.open-meteo.com/v1/search"
@@ -231,7 +237,6 @@ async def handle_tool_call(tool_call, db=None, context=None):
         "weather_tool": weather_tool,
         "pdf_tool": pdf_tool,
         "send_email_tool": send_email_tool,
-        "product_insert_tool": product_insert_tool,
     }
 
     tool_fn = local_tools.get(tool_name)
@@ -320,3 +325,11 @@ async def get_all_mcp_tools():
     except Exception as e:
         print(f"Error getting MCP tools: {e}")
         return {}
+    
+def refresh_vector_database():
+    """Call this when PDFs are uploaded/deleted to refresh the cache"""
+    clear_vector_cache()
+    print("✅ Vector database cache cleared")
+
+
+    

@@ -11,7 +11,7 @@ from services.documentService import (
     delete_document_from_db,
 )
 from fastapi.responses import JSONResponse
-
+from tools.toolmanager import refresh_vector_database
 from langchain_community.document_loaders import PyMuPDFLoader
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -207,6 +207,7 @@ async def get_all_documents(db: Session):
     return {"documents": documents}
 
 
+
 async def delete_document_by_id(doc_id: int, db: Session):
     global global_vectorstore
     try:
@@ -219,13 +220,17 @@ async def delete_document_by_id(doc_id: int, db: Session):
         if not deleted:
             return {"message": f"Failed to delete document ID {doc_id}"}
 
-        # Delete Chroma vector directory
-        import shutil
-        if os.path.exists(vector_path):
-            shutil.rmtree(vector_path)
+        # Delete FAISS vector files from disk
+        for ext in [".faiss", ".pkl"]:
+            path = vector_path + ext
+            if os.path.exists(path):
+                os.remove(path)
 
-        # Clear global vectorstore to force reload
+        # Optionally clear in-memory store
         global_vectorstore = None
+        
+        # ✅ Refresh vector cache after deletion
+        refresh_vector_database()
 
         return {"message": f"Deleted document ID {doc_id} and associated vector files."}
 
